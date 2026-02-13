@@ -12,7 +12,7 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
@@ -41,32 +41,8 @@ enum InputMode
 
 impl App
 {
-    fn new(mut rules: Vec<EnrichedRule>) -> Self
+    fn new(rules: Vec<EnrichedRule>) -> Self
     {
-        rules.sort_by(|a, b| {
-            let get_folder = |path: &std::path::Path| {
-                path.parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("")
-                    .to_lowercase()
-            };
-
-            let cat_a = get_folder(&a.source_file);
-            let cat_b = get_folder(&b.source_file);
-
-            match cat_a.cmp(&cat_b)
-            {
-                std::cmp::Ordering::Equal =>
-                {
-                    let name_a = a.data.name.as_deref().unwrap_or("").to_lowercase();
-                    let name_b = b.data.name.as_deref().unwrap_or("").to_lowercase();
-                    name_a.cmp(&name_b)
-                }
-                other => other,
-            }
-        });
-
         let mut app = Self {
             all_rules: rules.clone(),
             filtered_rules: rules,
@@ -202,6 +178,7 @@ pub fn run_app(service: &RuleService) -> Result<()>
                         _ =>
                         {}
                     },
+
                     InputMode::Editing => match key.code
                     {
                         KeyCode::Esc | KeyCode::Enter =>
@@ -230,8 +207,8 @@ pub fn run_app(service: &RuleService) -> Result<()>
     }
 
     disable_raw_mode()?;
-
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
     terminal.show_cursor()?;
 
     Ok(())
@@ -244,6 +221,13 @@ fn ui(frame: &mut Frame, app: &mut App)
         .constraints([Constraint::Length(3), Constraint::Min(1), Constraint::Length(1)])
         .split(frame.area());
 
+    render_search(frame, app, chunks[0]);
+    render_content(frame, app, chunks[1]);
+    render_help(frame, app, chunks[2]);
+}
+
+fn render_search(frame: &mut Frame, app: &App, area: Rect)
+{
     let search_style = match app.input_mode
     {
         InputMode::Editing => Style::default().fg(Color::Yellow),
@@ -270,8 +254,22 @@ fn ui(frame: &mut Frame, app: &mut App)
             .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
     );
 
-    frame.render_widget(search_text, chunks[0]);
+    frame.render_widget(search_text, area);
+}
 
+fn render_content(frame: &mut Frame, app: &mut App, area: Rect)
+{
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(area);
+
+    render_list(frame, app, chunks[0]);
+    render_details(frame, app, chunks[1]);
+}
+
+fn render_list(frame: &mut Frame, app: &mut App, area: Rect)
+{
     let total_items = app.filtered_rules.len();
     let total_pages = if total_items > 0
     {
@@ -293,11 +291,6 @@ fn ui(frame: &mut Frame, app: &mut App)
     {
         &[]
     };
-
-    let main_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-        .split(chunks[1]);
 
     let items: Vec<ListItem> = page_items_data
         .iter()
@@ -338,9 +331,14 @@ fn ui(frame: &mut Frame, app: &mut App)
         .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
 
-    frame.render_stateful_widget(list, main_chunks[0], &mut app.list_state);
+    frame.render_stateful_widget(list, area, &mut app.list_state);
+}
 
+fn render_details(frame: &mut Frame, app: &App, area: Rect)
+{
     let selected_visual_index = app.list_state.selected();
+    let start_index = app.current_page * app.items_per_page;
+
     let detail_text = if let Some(visual_idx) = selected_visual_index
     {
         let real_index = start_index + visual_idx;
@@ -450,7 +448,7 @@ fn ui(frame: &mut Frame, app: &mut App)
     else
     {
         vec![Line::from(
-            if total_items == 0
+            if app.filtered_rules.is_empty()
             {
                 t!("no_rules_found")
             }
@@ -474,8 +472,11 @@ fn ui(frame: &mut Frame, app: &mut App)
         .block(details_block)
         .wrap(Wrap { trim: true });
 
-    frame.render_widget(details, main_chunks[1]);
+    frame.render_widget(details, area);
+}
 
+fn render_help(frame: &mut Frame, app: &App, area: Rect)
+{
     let help_text = match app.input_mode
     {
         InputMode::Normal => format!(" {} ", t!("help_normal")),
@@ -484,5 +485,5 @@ fn ui(frame: &mut Frame, app: &mut App)
 
     let help = Paragraph::new(help_text).style(Style::default().fg(Color::DarkGray));
 
-    frame.render_widget(help, chunks[2]);
+    frame.render_widget(help, area);
 }

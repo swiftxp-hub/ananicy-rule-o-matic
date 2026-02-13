@@ -21,9 +21,16 @@ impl RuleRepository
         {
             if entry.path().extension().map_or(false, |e| e == "rules")
             {
-                if let Ok(mut file_rules) = self.parse_file(entry.path())
+                match self.parse_file(entry.path())
                 {
-                    rules.append(&mut file_rules);
+                    Ok(mut file_rules) =>
+                    {
+                        rules.append(&mut file_rules);
+                    }
+                    Err(err) =>
+                    {
+                        eprintln!("Skipping invalid rule file {:?}: {}", entry.path(), err);
+                    }
                 }
             }
         }
@@ -63,24 +70,28 @@ impl RuleRepository
             }
             else if trimmed.starts_with('{')
             {
-                if let Ok(data) = serde_json::from_str::<AnanicyRule>(trimmed)
+                match serde_json::from_str::<AnanicyRule>(trimmed)
                 {
-                    rules.push(EnrichedRule {
-                        data,
-
-                        context_comment: if comment_buffer.is_empty()
-                        {
-                            None
-                        }
-                        else
-                        {
-                            Some(comment_buffer.join("\n"))
-                        },
-
-                        source_file: path.to_path_buf(),
-                    });
-
-                    rules_processed_in_block = true;
+                    Ok(data) =>
+                    {
+                        rules.push(EnrichedRule {
+                            data,
+                            context_comment: if comment_buffer.is_empty()
+                            {
+                                None
+                            }
+                            else
+                            {
+                                Some(comment_buffer.join("\n"))
+                            },
+                            source_file: path.to_path_buf(),
+                        });
+                        rules_processed_in_block = true;
+                    }
+                    Err(_) =>
+                    {
+                        continue;
+                    }
                 }
             }
         }

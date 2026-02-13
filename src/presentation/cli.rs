@@ -1,5 +1,4 @@
 use crate::domain::models::EnrichedRule;
-
 use colored::*;
 use rust_i18n::t;
 use std::borrow::Cow;
@@ -9,7 +8,6 @@ pub fn print_search_results(rules: &[EnrichedRule])
     if rules.is_empty()
     {
         println!("{}", t!("no_rules_found").yellow());
-
         return;
     }
 
@@ -17,35 +15,7 @@ pub fn print_search_results(rules: &[EnrichedRule])
     println!("{}", rules_found_message.green());
     println!();
 
-    let mut sorted_rules = rules.to_vec();
-
-    sorted_rules.sort_by(|a, b| {
-        let get_folder = |path: &std::path::Path| {
-            path.parent()
-                .and_then(|p| p.file_name())
-                .and_then(|n| n.to_str())
-                .unwrap_or("")
-                .to_lowercase()
-        };
-
-        let category_a = get_folder(&a.source_file);
-        let category_b = get_folder(&b.source_file);
-
-        match category_a.cmp(&category_b)
-        {
-            std::cmp::Ordering::Equal =>
-            {
-                let name_a = a.data.name.as_deref().unwrap_or("").to_lowercase();
-                let name_b = b.data.name.as_deref().unwrap_or("").to_lowercase();
-
-                name_a.cmp(&name_b)
-            }
-
-            other => other,
-        }
-    });
-
-    for rule in sorted_rules
+    for rule in rules
     {
         let category = rule
             .source_file
@@ -63,7 +33,7 @@ pub fn print_search_results(rules: &[EnrichedRule])
 
         print!("[{}] Name: {}", category.blue(), name.cyan().bold());
 
-        if let Some(rule_type) = rule.data.rule_type
+        if let Some(rule_type) = rule.data.rule_type.as_deref()
         {
             print!(" | Type: {}", rule_type.white());
         }
@@ -78,7 +48,7 @@ pub fn print_search_results(rules: &[EnrichedRule])
             print!(" | Nice latency: {}", latency_nice);
         }
 
-        if let Some(sched) = rule.data.sched
+        if let Some(sched) = rule.data.sched.as_deref()
         {
             print!(" | Scheduling policy: {}", sched);
         }
