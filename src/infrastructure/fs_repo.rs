@@ -1,4 +1,4 @@
-use crate::domain::models::{AnanicyRuleData, EnrichedRule};
+use crate::domain::models::{AnanicyRule, EnrichedRule};
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
@@ -63,7 +63,7 @@ impl RuleRepository
             }
             else if trimmed.starts_with('{')
             {
-                if let Ok(data) = serde_json::from_str::<AnanicyRuleData>(trimmed)
+                if let Ok(data) = serde_json::from_str::<AnanicyRule>(trimmed)
                 {
                     rules.push(EnrichedRule {
                         data,

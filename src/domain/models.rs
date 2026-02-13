@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnanicyRuleData
+pub struct AnanicyRule
 {
     pub name: Option<String>,
     #[serde(rename = "type")]
@@ -14,7 +14,7 @@ pub struct AnanicyRuleData
 #[derive(Debug, Clone)]
 pub struct EnrichedRule
 {
-    pub data: AnanicyRuleData,
+    pub data: AnanicyRule,
     pub context_comment: Option<String>,
     pub source_file: PathBuf,
 }
