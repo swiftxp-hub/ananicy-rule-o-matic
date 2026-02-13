@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate rust_i18n;
+i18n!("locales");
+
 mod application;
 mod domain;
 mod infrastructure;
@@ -14,6 +18,9 @@ use infrastructure::fs_repo::RuleRepository;
 #[command(about = "A lightweight rule manager for Ananicy-Cpp.", long_about = None)]
 struct Cli
 {
+    #[arg(short, long, default_value = "en")]
+    language: String,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -30,6 +37,7 @@ enum Commands
 fn main() -> anyhow::Result<()>
 {
     let cli = Cli::parse();
+    rust_i18n::set_locale(&cli.language);
 
     let rule_repository = RuleRepository::new();
     let rule_service = RuleService::new(rule_repository);

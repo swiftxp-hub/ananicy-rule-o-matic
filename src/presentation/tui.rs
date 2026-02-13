@@ -18,7 +18,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
-use std::io;
+use rust_i18n::t;
+use std::{borrow::Cow, io};
 
 struct App
 {
@@ -254,11 +255,11 @@ fn ui(frame: &mut Frame, app: &mut App)
         env!("CARGO_PKG_VERSION"),
         if app.input_mode == InputMode::Editing
         {
-            "Typing..."
+            t!("search_typing")
         }
         else
         {
-            "Press 's' to search"
+            t!("search_placeholder")
         }
     );
 
@@ -308,7 +309,13 @@ fn ui(frame: &mut Frame, app: &mut App)
                 .and_then(|n| n.to_str())
                 .unwrap_or("root");
 
-            let name = rule.data.name.as_deref().unwrap_or("Unknown");
+            let name = rule
+                .data
+                .name
+                .as_deref()
+                .map(Cow::Borrowed)
+                .unwrap_or_else(|| t!("unknown"));
+
             let rule_type = rule.data.rule_type.as_deref().unwrap_or("-");
 
             let content = Line::from(vec![
@@ -321,7 +328,10 @@ fn ui(frame: &mut Frame, app: &mut App)
         })
         .collect();
 
-    let list_title = format!(" Rules (Page {}/{}) ", app.current_page + 1, total_pages);
+    let list_title = format!(
+        " {} ",
+        t!("rules_page", current = app.current_page + 1, total = total_pages)
+    );
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title(list_title))
@@ -338,7 +348,7 @@ fn ui(frame: &mut Frame, app: &mut App)
         if let Some(rule) = app.filtered_rules.get(real_index)
         {
             let mut lines = vec![Line::from(vec![
-                Span::raw("Name: "),
+                Span::raw(format!("{}: ", t!("name"))),
                 Span::styled(
                     rule.data.name.as_deref().unwrap_or("?"),
                     Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
@@ -348,7 +358,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             if let Some(rule_type) = &rule.data.rule_type
             {
                 lines.push(Line::from(vec![
-                    Span::raw("Type: "),
+                    Span::raw(format!("{}: ", t!("typ"))),
                     Span::styled(rule_type, Style::default().fg(Color::White)),
                 ]));
             }
@@ -364,7 +374,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             if let Some(ioclass) = &rule.data.ioclass
             {
                 lines.push(Line::from(vec![
-                    Span::raw("IO Class: "),
+                    Span::raw("IO: "),
                     Span::styled(ioclass, Style::default().fg(Color::Magenta)),
                 ]));
             }
@@ -372,7 +382,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             lines.push(Line::from(""));
 
             lines.push(Line::from(Span::styled(
-                "Source File:",
+                t!("source_file"),
                 Style::default().add_modifier(Modifier::UNDERLINED),
             )));
 
@@ -382,7 +392,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             if let Some(ctx) = &rule.context_comment
             {
                 lines.push(Line::from(Span::styled(
-                    "Context / Comments:",
+                    t!("context_comment"),
                     Style::default().add_modifier(Modifier::UNDERLINED),
                 )));
                 for comment_line in ctx.lines()
@@ -394,7 +404,7 @@ fn ui(frame: &mut Frame, app: &mut App)
         }
         else
         {
-            vec![Line::from("Error selecting rule")]
+            vec![Line::from(t!("error_selecting_rule"))]
         }
     }
     else
@@ -402,20 +412,23 @@ fn ui(frame: &mut Frame, app: &mut App)
         vec![Line::from(
             if total_items == 0
             {
-                "No rules found."
+                t!("no_rules_found")
             }
             else
             {
-                "No selection"
+                t!("no_selection")
             },
         )]
     };
 
-    let details_block = Block::default().borders(Borders::ALL).title(" Details ").title_bottom(
-        Line::from("\"Don't drink the coffee!\" ")
-            .alignment(Alignment::Right)
-            .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::ITALIC)),
-    );
+    let details_block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" {} ", t!("details_title")))
+        .title_bottom(
+            Line::from(format!(" {} ", t!("quote_coffee")))
+                .alignment(Alignment::Right)
+                .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::ITALIC)),
+        );
 
     let details = Paragraph::new(detail_text)
         .block(details_block)
@@ -425,8 +438,8 @@ fn ui(frame: &mut Frame, app: &mut App)
 
     let help_text = match app.input_mode
     {
-        InputMode::Normal => " [q] Quit | [s] Search | [↑/↓] Navigate | [←/→] Page ",
-        InputMode::Editing => " [Esc/Enter] Done | [Type] Search ",
+        InputMode::Normal => format!(" {} ", t!("help_normal")),
+        InputMode::Editing => format!(" {} ", t!("help_editing")),
     };
 
     let help = Paragraph::new(help_text).style(Style::default().fg(Color::DarkGray));

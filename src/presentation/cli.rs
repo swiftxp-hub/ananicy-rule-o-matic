@@ -1,16 +1,20 @@
 use crate::domain::models::EnrichedRule;
+
 use colored::*;
+use rust_i18n::t;
+use std::borrow::Cow;
 
 pub fn print_search_results(rules: &[EnrichedRule])
 {
     if rules.is_empty()
     {
-        println!("{}", "No rules found.".yellow());
+        println!("{}", t!("no_rules_found").yellow());
 
         return;
     }
 
-    println!("Found {} rules:", rules.len().to_string().green());
+    let rules_found_message = t!("rules_found", count = rules.len());
+    println!("{}", rules_found_message.green());
     println!();
 
     let mut sorted_rules = rules.to_vec();
@@ -50,7 +54,13 @@ pub fn print_search_results(rules: &[EnrichedRule])
             .and_then(|name| name.to_str())
             .unwrap_or("root");
 
-        let name = rule.data.name.as_deref().unwrap_or("Unknown");
+        let name = rule
+            .data
+            .name
+            .as_deref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(|| t!("unknown"));
+
         let rule_type = rule.data.rule_type.as_deref().unwrap_or("-");
 
         print!("[{}] {} ({})", category.blue(), name.cyan().bold(), rule_type.white());
@@ -67,14 +77,14 @@ pub fn print_search_results(rules: &[EnrichedRule])
 
         println!();
 
-        println!("  File: {}", rule.source_file.to_string_lossy().dimmed());
+        println!("  {}: {}", t!("file"), rule.source_file.to_string_lossy().dimmed());
 
         if let Some(comment) = &rule.context_comment
         {
             let preview = comment.lines().next().unwrap_or("");
             if !preview.is_empty()
             {
-                println!("  Info: {}", preview.italic().dimmed());
+                println!("  {}: {}", t!("info"), preview.italic().dimmed());
             }
         }
         println!();
