@@ -61,18 +61,46 @@ pub fn print_search_results(rules: &[EnrichedRule])
             .map(Cow::Borrowed)
             .unwrap_or_else(|| t!("unknown"));
 
-        let rule_type = rule.data.rule_type.as_deref().unwrap_or("-");
+        print!("[{}] Name: {}", category.blue(), name.cyan().bold());
 
-        print!("[{}] {} ({})", category.blue(), name.cyan().bold(), rule_type.white());
+        if let Some(rule_type) = rule.data.rule_type
+        {
+            print!(" | Type: {}", rule_type.white());
+        }
 
         if let Some(nice) = rule.data.nice
         {
-            print!(" Nice: {}", nice.to_string().yellow());
+            print!(" | Nice: {}", nice.to_string().yellow());
+        }
+
+        if let Some(latency_nice) = rule.data.latency_nice
+        {
+            print!(" | Nice latency: {}", latency_nice);
+        }
+
+        if let Some(sched) = rule.data.sched
+        {
+            print!(" | Scheduling policy: {}", sched);
+        }
+
+        if let Some(rtprio) = &rule.data.rtprio
+        {
+            print!(" | Static priority: {}", rtprio);
         }
 
         if let Some(ioclass) = &rule.data.ioclass
         {
-            print!(" IO: {}", ioclass.magenta());
+            print!(" | IO class: {}", ioclass);
+        }
+
+        if let Some(oom_score_adj) = &rule.data.oom_score_adj
+        {
+            print!(" | Out of memory killer score: {}", oom_score_adj);
+        }
+
+        if let Some(cgroup) = &rule.data.cgroup
+        {
+            print!(" | CGroup: {}", cgroup);
         }
 
         println!();
@@ -87,6 +115,7 @@ pub fn print_search_results(rules: &[EnrichedRule])
                 println!("  {}: {}", t!("info"), preview.italic().dimmed());
             }
         }
+
         println!();
     }
 }

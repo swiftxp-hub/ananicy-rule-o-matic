@@ -8,7 +8,12 @@ pub struct AnanicyRule
     #[serde(rename = "type")]
     pub rule_type: Option<String>,
     pub nice: Option<i32>,
+    pub latency_nice: Option<i32>,
+    pub sched: Option<String>,
+    pub rtprio: Option<i32>,
     pub ioclass: Option<String>,
+    pub oom_score_adj: Option<i32>,
+    pub cgroup: Option<String>,
 }
 
 #[derive(Debug, Clone)]

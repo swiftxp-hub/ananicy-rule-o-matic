@@ -348,7 +348,7 @@ fn ui(frame: &mut Frame, app: &mut App)
         if let Some(rule) = app.filtered_rules.get(real_index)
         {
             let mut lines = vec![Line::from(vec![
-                Span::raw(format!("{}: ", t!("name"))),
+                Span::raw("Name: "),
                 Span::styled(
                     rule.data.name.as_deref().unwrap_or("?"),
                     Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
@@ -358,7 +358,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             if let Some(rule_type) = &rule.data.rule_type
             {
                 lines.push(Line::from(vec![
-                    Span::raw(format!("{}: ", t!("type"))),
+                    Span::raw("Type: "),
                     Span::styled(rule_type, Style::default().fg(Color::White)),
                 ]));
             }
@@ -371,11 +371,51 @@ fn ui(frame: &mut Frame, app: &mut App)
                 ]));
             }
 
+            if let Some(nice) = rule.data.latency_nice
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Nice latency: "),
+                    Span::styled(nice.to_string(), Style::default()),
+                ]));
+            }
+
+            if let Some(sched) = &rule.data.sched
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Scheduling policy: "),
+                    Span::styled(sched, Style::default()),
+                ]));
+            }
+
+            if let Some(rtprio) = rule.data.rtprio
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Static priority: "),
+                    Span::styled(rtprio.to_string(), Style::default()),
+                ]));
+            }
+
             if let Some(ioclass) = &rule.data.ioclass
             {
                 lines.push(Line::from(vec![
-                    Span::raw("IO: "),
-                    Span::styled(ioclass, Style::default().fg(Color::Magenta)),
+                    Span::raw("IO class: "),
+                    Span::styled(ioclass, Style::default()),
+                ]));
+            }
+
+            if let Some(oom_score_adj) = rule.data.oom_score_adj
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Out of memory killer score: "),
+                    Span::styled(oom_score_adj.to_string(), Style::default()),
+                ]));
+            }
+
+            if let Some(cgroup) = &rule.data.cgroup
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("CGroup: "),
+                    Span::styled(cgroup, Style::default()),
                 ]));
             }
 
