@@ -2,7 +2,7 @@
 
 > "Don't drink the coffee!"
 
-Rule-O-Matic for ananicy-cpp is a a lightweight rule manager written in Rust.
+Rule-O-Matic for ananicy-cpp is a lightweight rule manager written in Rust.
 
 **Warning: The tool is in very early development stage. So is this readme.** 😁
 
@@ -15,7 +15,7 @@ Rule-O-Matic for ananicy-cpp is a a lightweight rule manager written in Rust.
 
 ```bash
 git clone https://github.com/swiftxp-hub/ananicy-rule-o-matic.git
-cd ananicy-rule-o-matici
+cd ananicy-rule-o-matic
 cargo build --release
 ```
 
