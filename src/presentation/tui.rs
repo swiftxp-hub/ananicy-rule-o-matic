@@ -358,7 +358,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             if let Some(rule_type) = &rule.data.rule_type
             {
                 lines.push(Line::from(vec![
-                    Span::raw(format!("{}: ", t!("typ"))),
+                    Span::raw(format!("{}: ", t!("type"))),
                     Span::styled(rule_type, Style::default().fg(Color::White)),
                 ]));
             }
