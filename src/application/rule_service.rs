@@ -5,23 +5,22 @@ use std::path::Path;
 
 pub struct RuleService
 {
-    repo: RuleRepository,
+    rule_repository: RuleRepository,
 }
 
 impl RuleService
 {
-    pub fn new(repo: RuleRepository) -> Self
+    pub fn new(rule_repository: RuleRepository) -> Self
     {
-        Self { repo }
+        Self { rule_repository }
     }
 
     pub fn search_rules(&self, query: &str) -> Result<Vec<EnrichedRule>>
     {
-        let rules = self.repo.load_rules_from_dir(Path::new("./test_rules"))?;
-
+        let rules = self.rule_repository.load_rules_from_dir(Path::new("./test_rules"))?;
         let query_lower = query.to_lowercase();
 
-        let filtered: Vec<EnrichedRule> = rules
+        let filtered_rules: Vec<EnrichedRule> = rules
             .into_iter()
             .filter(|r| {
                 r.data
@@ -34,6 +33,6 @@ impl RuleService
             })
             .collect();
 
-        Ok(filtered)
+        Ok(filtered_rules)
     }
 }

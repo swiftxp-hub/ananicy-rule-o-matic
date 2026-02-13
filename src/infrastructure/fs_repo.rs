@@ -27,6 +27,7 @@ impl RuleRepository
                 }
             }
         }
+
         Ok(rules)
     }
 
@@ -34,7 +35,9 @@ impl RuleRepository
     {
         let content = fs::read_to_string(path)?;
         let mut rules = Vec::new();
+
         let mut comment_buffer = Vec::new();
+        let mut rules_processed_in_block = false;
 
         for line in content.lines()
         {
@@ -42,11 +45,20 @@ impl RuleRepository
 
             if trimmed.is_empty()
             {
+                comment_buffer.clear();
+                rules_processed_in_block = false;
+
                 continue;
             }
 
             if trimmed.starts_with('#')
             {
+                if rules_processed_in_block
+                {
+                    comment_buffer.clear();
+                    rules_processed_in_block = false;
+                }
+
                 comment_buffer.push(trimmed.to_string());
             }
             else if trimmed.starts_with('{')
@@ -55,6 +67,7 @@ impl RuleRepository
                 {
                     rules.push(EnrichedRule {
                         data,
+
                         context_comment: if comment_buffer.is_empty()
                         {
                             None
@@ -63,12 +76,15 @@ impl RuleRepository
                         {
                             Some(comment_buffer.join("\n"))
                         },
+
                         source_file: path.to_path_buf(),
                     });
-                    comment_buffer.clear();
+
+                    rules_processed_in_block = true;
                 }
             }
         }
+
         Ok(rules)
     }
 }

@@ -31,20 +31,20 @@ fn main() -> anyhow::Result<()>
 {
     let cli = Cli::parse();
 
-    let repo = RuleRepository::new();
-    let service = RuleService::new(repo);
+    let rule_repository = RuleRepository::new();
+    let rule_service = RuleService::new(rule_repository);
 
     match &cli.command
     {
         Some(Commands::Search { query }) =>
         {
-            let results = service.search_rules(query)?;
+            let results = rule_service.search_rules(query)?;
             presentation::cli::print_search_results(&results);
         }
 
         None =>
         {
-            presentation::tui::run_app()?;
+            presentation::tui::run_app(&rule_service)?;
         }
     }
 
