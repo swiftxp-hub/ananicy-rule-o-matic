@@ -309,10 +309,12 @@ fn ui(frame: &mut Frame, app: &mut App)
                 .unwrap_or("root");
 
             let name = rule.data.name.as_deref().unwrap_or("Unknown");
+            let rule_type = rule.data.rule_type.as_deref().unwrap_or("-");
 
             let content = Line::from(vec![
-                Span::styled(format!("[{:^7}] ", category), Style::default().fg(Color::Blue)),
-                Span::styled(name, Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(format!("[{}] ", category), Style::default().fg(Color::Blue)),
+                Span::styled(name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(format!(" ({}) ", rule_type), Style::default().fg(Color::White)),
             ]);
 
             ListItem::new(content)
@@ -347,7 +349,7 @@ fn ui(frame: &mut Frame, app: &mut App)
             {
                 lines.push(Line::from(vec![
                     Span::raw("Type: "),
-                    Span::styled(rule_type, Style::default().fg(Color::Green)),
+                    Span::styled(rule_type, Style::default().fg(Color::White)),
                 ]));
             }
 
