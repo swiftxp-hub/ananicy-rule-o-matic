@@ -40,6 +40,31 @@ fn test_integration_process_detection()
 }
 
 #[test]
+fn test_is_process_active_case_insensitive()
+{
+    let mut child = spawn_test_process("sleep");
+    let mut process_service = ProcessService::new();
+
+    thread::sleep(Duration::from_millis(100));
+    process_service.update_processes();
+
+    assert!(
+        process_service.is_process_active("SLEEP"),
+        "Should detect process with uppercase query"
+    );
+    assert!(
+        process_service.is_process_active("Sleep"),
+        "Should detect process with mixed case query"
+    );
+    assert!(
+        process_service.is_process_active("sleep"),
+        "Should detect process with lowercase query"
+    );
+
+    let _ = child.kill();
+}
+
+#[test]
 fn test_is_process_active_found()
 {
     let mut child = spawn_test_process("sleep");

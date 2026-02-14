@@ -1,16 +1,29 @@
 use crate::domain::models::ProcessInfo;
 
 use libc::{SCHED_BATCH, SCHED_FIFO, SCHED_IDLE, SCHED_OTHER, SCHED_RR, SYS_ioprio_get, SYS_sched_getattr, syscall};
+use std::collections::HashSet;
 use std::fs;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
 pub struct ProcessService
 {
     system: System,
+    active_process_names: HashSet<String>,
 }
 
 impl ProcessService
 {
+    pub fn new() -> Self
+    {
+        let mut service = Self {
+            system: System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything())),
+            active_process_names: HashSet::new(),
+        };
+
+        service.update_processes();
+        service
+    }
+
     pub fn get_process_infos(&self, rule_name: &str) -> Vec<ProcessInfo>
     {
         let query = rule_name.to_lowercase();
@@ -46,18 +59,7 @@ impl ProcessService
 
     pub fn is_process_active(&self, rule_name: &str) -> bool
     {
-        let query = rule_name.to_lowercase();
-        self.system
-            .processes()
-            .values()
-            .any(|process| process.name().to_string_lossy().to_lowercase() == query)
-    }
-
-    pub fn new() -> Self
-    {
-        Self {
-            system: System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything())),
-        }
+        self.active_process_names.contains(&rule_name.to_lowercase())
     }
 
     pub fn shorten_cgroup(path: &str) -> String
@@ -82,6 +84,12 @@ impl ProcessService
     pub fn update_processes(&mut self)
     {
         self.system.refresh_processes(ProcessesToUpdate::All, true);
+        self.active_process_names = self
+            .system
+            .processes()
+            .values()
+            .map(|p| p.name().to_string_lossy().to_lowercase())
+            .collect();
     }
 
     fn read_nice(&self, pid: i32) -> Option<i32>
@@ -96,6 +104,7 @@ impl ProcessService
     fn read_oom_score(&self, pid: i32) -> Option<i32>
     {
         let path = format!("/proc/{}/oom_score_adj", pid);
+
         fs::read_to_string(path)
             .ok()
             .and_then(|content| content.trim().parse().ok())
@@ -119,6 +128,7 @@ impl ProcessService
                 }
             }
         }
+
         Some("/".to_string())
     }
 

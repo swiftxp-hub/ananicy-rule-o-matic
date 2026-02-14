@@ -1,12 +1,15 @@
 use crate::application::process_service::ProcessService;
 use crate::application::rule_service::RuleService;
 use crate::domain::models::EnrichedRule;
+
 use anyhow::Result;
+
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -15,6 +18,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
+
 use rust_i18n::t;
 use std::{
     borrow::Cow,
@@ -26,6 +30,7 @@ struct App
 {
     all_rules: Vec<EnrichedRule>,
     current_page: usize,
+    filter_active_only: bool,
     filtered_rules: Vec<EnrichedRule>,
     input_mode: InputMode,
     items_per_page: usize,
@@ -47,6 +52,7 @@ impl App
         let mut app = Self {
             all_rules: rules.clone(),
             filtered_rules: rules,
+            filter_active_only: false,
             list_state: ListState::default(),
             search_query: String::new(),
             input_mode: InputMode::Normal,
@@ -107,7 +113,7 @@ impl App
         }
     }
 
-    fn update_search(&mut self)
+    fn update_search(&mut self, process_service: &ProcessService)
     {
         let query = self.search_query.to_lowercase();
 
@@ -115,6 +121,15 @@ impl App
             .all_rules
             .iter()
             .filter(|rule| {
+                if self.filter_active_only
+                {
+                    let original_name = rule.data.name.as_deref().unwrap_or("");
+                    if !process_service.is_process_active(original_name)
+                    {
+                        return false;
+                    }
+                }
+
                 let match_str = |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&query);
 
                 let match_num = |opt: &Option<i32>| opt.map(|n| n.to_string()).unwrap_or_default().contains(&query);
@@ -184,6 +199,11 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
                         {
                             app.input_mode = InputMode::Editing;
                         }
+                        KeyCode::Char('a') =>
+                        {
+                            app.filter_active_only = !app.filter_active_only;
+                            app.update_search(process_service);
+                        }
                         KeyCode::Down => app.next(),
                         KeyCode::Up => app.previous(),
                         KeyCode::Right => app.next_page(),
@@ -200,12 +220,12 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
                         KeyCode::Backspace =>
                         {
                             app.search_query.pop();
-                            app.update_search();
+                            app.update_search(process_service);
                         }
                         KeyCode::Char(c) =>
                         {
                             app.search_query.push(c);
-                            app.update_search();
+                            app.update_search(process_service);
                         }
                         _ =>
                         {}
@@ -217,6 +237,10 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
         if last_tick.elapsed() >= tick_rate
         {
             process_service.update_processes();
+            if app.filter_active_only
+            {
+                app.update_search(process_service);
+            }
             last_tick = Instant::now();
         }
     }
@@ -248,7 +272,7 @@ fn render_search(frame: &mut Frame, app: &App, area: Rect)
         InputMode::Normal => Style::default().fg(Color::White),
     };
 
-    let search_title = format!(
+    let mut search_title = format!(
         " Rule-O-Matic v{} | {} ",
         env!("CARGO_PKG_VERSION"),
         if app.input_mode == InputMode::Editing
@@ -260,6 +284,11 @@ fn render_search(frame: &mut Frame, app: &App, area: Rect)
             t!("search_placeholder")
         }
     );
+
+    if app.filter_active_only
+    {
+        search_title.push_str(&t!("active_filter_enabled"));
+    }
 
     let search_text = Paragraph::new(app.search_query.as_str()).style(search_style).block(
         Block::default()
