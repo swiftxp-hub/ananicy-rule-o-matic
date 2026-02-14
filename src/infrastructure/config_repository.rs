@@ -4,17 +4,27 @@ use directories::ProjectDirs;
 use std::fs;
 use std::path::PathBuf;
 
-pub struct ConfigRepository;
+pub struct ConfigRepository {
+    base_path: Option<PathBuf>,
+}
 
 impl ConfigRepository
 {
     pub fn new() -> Self
     {
-        Self
+        Self { base_path: None }
+    }
+
+    pub fn new_with_base_path(path: PathBuf) -> Self {
+        Self { base_path: Some(path) }
     }
 
     fn get_config_path(&self) -> Result<PathBuf>
     {
+        if let Some(ref base) = self.base_path {
+            return Ok(base.join("config.toml"));
+        }
+
         let project_dirs = ProjectDirs::from("com", "swiftxp", "ananicy-rule-o-matic")
             .context("Could not determine config directory")?;
 

@@ -1,22 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-#[macro_use]
-extern crate rust_i18n;
-
-mod application;
-mod domain;
-mod infrastructure;
-mod presentation;
-
-use application::process_service::ProcessService;
-use application::rule_service::RuleService;
+use ananicy_rule_o_matic::application::process_service::ProcessService;
+use ananicy_rule_o_matic::application::rule_service::RuleService;
+use ananicy_rule_o_matic::infrastructure::config_repository::ConfigRepository;
+use ananicy_rule_o_matic::infrastructure::rule_repository::RuleRepository;
+use ananicy_rule_o_matic::presentation;
 use colored::*;
-use infrastructure::config_repository::ConfigRepository;
-use infrastructure::rule_repository::RuleRepository;
 use std::path::PathBuf;
-
-i18n!("locales");
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

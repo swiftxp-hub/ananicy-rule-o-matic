@@ -23,7 +23,7 @@ impl Default for AppConfig
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnanicyRule
 {
     pub name: Option<String>,
