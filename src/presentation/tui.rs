@@ -69,9 +69,20 @@ impl App
             .all_rules
             .iter()
             .filter(|r| {
-                let name_match = r.data.name.as_deref().unwrap_or("").to_lowercase().contains(&q);
-                let comment_match = r.context_comment.as_deref().unwrap_or("").to_lowercase().contains(&q);
-                name_match || comment_match
+                let match_str = |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&q);
+
+                let match_num = |opt: &Option<i32>| opt.map(|n| n.to_string()).unwrap_or_default().contains(&q);
+
+                match_str(&r.data.name)
+                    || match_str(&r.data.rule_type)
+                    || match_str(&r.data.sched)
+                    || match_str(&r.data.ioclass)
+                    || match_str(&r.data.cgroup)
+                    || match_str(&r.context_comment)
+                    || match_num(&r.data.nice)
+                    || match_num(&r.data.latency_nice)
+                    || match_num(&r.data.rtprio)
+                    || match_num(&r.data.oom_score_adj)
             })
             .cloned()
             .collect();
@@ -178,7 +189,6 @@ pub fn run_app(service: &RuleService) -> Result<()>
                         _ =>
                         {}
                     },
-
                     InputMode::Editing => match key.code
                     {
                         KeyCode::Esc | KeyCode::Enter =>
@@ -207,8 +217,8 @@ pub fn run_app(service: &RuleService) -> Result<()>
     }
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
     Ok(())
@@ -438,6 +448,7 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                     lines.push(Line::from(Span::styled(comment_line, Style::default().fg(Color::Gray))));
                 }
             }
+
             lines
         }
         else

@@ -79,10 +79,10 @@ pub fn print_search_results(rules: &[EnrichedRule])
 
         if let Some(comment) = &rule.context_comment
         {
-            let preview = comment.lines().next().unwrap_or("");
-            if !preview.is_empty()
+            println!("  {}:", t!("info"));
+            for line in comment.lines()
             {
-                println!("  {}: {}", t!("info"), preview.italic().dimmed());
+                println!("    {}", line.italic().dimmed());
             }
         }
 

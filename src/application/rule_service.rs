@@ -18,19 +18,27 @@ impl RuleService
     pub fn search_rules(&self, query: &str) -> Result<Vec<EnrichedRule>>
     {
         let mut rules = self.rule_repository.load_rules_from_dir(Path::new("./test_rules"))?;
-
         let query_lower = query.to_lowercase();
 
         if !query.is_empty()
         {
             rules.retain(|r| {
-                r.data
-                    .name
-                    .as_ref()
-                    .map_or(false, |n| n.to_lowercase().contains(&query_lower))
-                    || r.context_comment
-                        .as_ref()
-                        .map_or(false, |c| c.to_lowercase().contains(&query_lower))
+                let match_str =
+                    |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&query_lower);
+
+                let match_num =
+                    |opt: &Option<i32>| opt.map(|n| n.to_string()).unwrap_or_default().contains(&query_lower);
+
+                match_str(&r.data.name)
+                    || match_str(&r.data.rule_type)
+                    || match_str(&r.data.sched)
+                    || match_str(&r.data.ioclass)
+                    || match_str(&r.data.cgroup)
+                    || match_num(&r.data.nice)
+                    || match_num(&r.data.latency_nice)
+                    || match_num(&r.data.rtprio)
+                    || match_num(&r.data.oom_score_adj)
+                    || match_str(&r.context_comment)
             });
         }
 
