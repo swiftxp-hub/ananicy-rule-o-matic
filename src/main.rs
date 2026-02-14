@@ -43,8 +43,8 @@ fn main() -> Result<()>
     rust_i18n::set_locale(&args.language);
 
     let config = load_or_create_config()?;
-    let repo = Arc::new(FsRuleRepository::new(config.rule_paths));
-    let rule_service = RuleService::new(repo);
+    let rule_repository = Arc::new(FsRuleRepository::new(config.rule_paths));
+    let rule_service = RuleService::new(rule_repository);
 
     match args.command
     {

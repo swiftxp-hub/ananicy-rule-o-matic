@@ -1,4 +1,5 @@
 use crate::domain::models::EnrichedRule;
+
 use colored::*;
 use rust_i18n::t;
 use std::borrow::Cow;
@@ -8,6 +9,7 @@ pub fn print_search_results(rules: &[EnrichedRule])
     if rules.is_empty()
     {
         println!("{}", t!("no_rules_found").yellow());
+
         return;
     }
 

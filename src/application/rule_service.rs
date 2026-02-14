@@ -1,5 +1,6 @@
 use crate::domain::RuleRepository;
 use crate::domain::models::EnrichedRule;
+
 use anyhow::Result;
 use std::sync::Arc;
 
