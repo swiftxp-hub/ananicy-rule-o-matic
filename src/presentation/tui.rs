@@ -1,15 +1,12 @@
 use crate::application::process_service::ProcessService;
 use crate::application::rule_service::RuleService;
 use crate::domain::models::EnrichedRule;
-
 use anyhow::Result;
-
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -18,7 +15,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
-
 use rust_i18n::t;
 use std::{
     borrow::Cow,
@@ -29,19 +25,19 @@ use std::{
 struct App
 {
     all_rules: Vec<EnrichedRule>,
+    current_page: usize,
     filtered_rules: Vec<EnrichedRule>,
+    input_mode: InputMode,
+    items_per_page: usize,
     list_state: ListState,
     search_query: String,
-    input_mode: InputMode,
-    current_page: usize,
-    items_per_page: usize,
 }
 
 #[derive(PartialEq)]
 enum InputMode
 {
-    Normal,
     Editing,
+    Normal,
 }
 
 impl App
@@ -66,49 +62,6 @@ impl App
         app
     }
 
-    fn update_search(&mut self)
-    {
-        let query_lowercase = self.search_query.to_lowercase();
-
-        self.filtered_rules = self
-            .all_rules
-            .iter()
-            .filter(|r| {
-                let match_str =
-                    |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&query_lowercase);
-
-                let match_num = |opt: &Option<i32>| {
-                    opt.map(|n| n.to_string())
-                        .unwrap_or_default()
-                        .contains(&query_lowercase)
-                };
-
-                match_str(&r.data.name)
-                    || match_str(&r.data.rule_type)
-                    || match_str(&r.data.sched)
-                    || match_str(&r.data.ioclass)
-                    || match_str(&r.data.cgroup)
-                    || match_str(&r.context_comment)
-                    || match_num(&r.data.nice)
-                    || match_num(&r.data.latency_nice)
-                    || match_num(&r.data.rtprio)
-                    || match_num(&r.data.oom_score_adj)
-            })
-            .cloned()
-            .collect();
-
-        self.current_page = 0;
-
-        if self.filtered_rules.is_empty()
-        {
-            self.list_state.select(None);
-        }
-        else
-        {
-            self.list_state.select(Some(0));
-        }
-    }
-
     fn next(&mut self)
     {
         if let Some(selected) = self.list_state.selected()
@@ -124,6 +77,16 @@ impl App
         }
     }
 
+    fn next_page(&mut self)
+    {
+        let total_pages = (self.filtered_rules.len() as f64 / self.items_per_page as f64).ceil() as usize;
+        if total_pages > 0 && self.current_page < total_pages - 1
+        {
+            self.current_page += 1;
+            self.list_state.select(Some(0));
+        }
+    }
+
     fn previous(&mut self)
     {
         if let Some(selected) = self.list_state.selected()
@@ -135,21 +98,49 @@ impl App
         }
     }
 
-    fn next_page(&mut self)
-    {
-        let total_pages = (self.filtered_rules.len() as f64 / self.items_per_page as f64).ceil() as usize;
-        if total_pages > 0 && self.current_page < total_pages - 1
-        {
-            self.current_page += 1;
-            self.list_state.select(Some(0));
-        }
-    }
-
     fn previous_page(&mut self)
     {
         if self.current_page > 0
         {
             self.current_page -= 1;
+            self.list_state.select(Some(0));
+        }
+    }
+
+    fn update_search(&mut self)
+    {
+        let query = self.search_query.to_lowercase();
+
+        self.filtered_rules = self
+            .all_rules
+            .iter()
+            .filter(|rule| {
+                let match_str = |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&query);
+
+                let match_num = |opt: &Option<i32>| opt.map(|n| n.to_string()).unwrap_or_default().contains(&query);
+
+                match_str(&rule.data.name)
+                    || match_str(&rule.data.rule_type)
+                    || match_str(&rule.data.sched)
+                    || match_str(&rule.data.ioclass)
+                    || match_str(&rule.data.cgroup)
+                    || match_str(&rule.context_comment)
+                    || match_num(&rule.data.nice)
+                    || match_num(&rule.data.latency_nice)
+                    || match_num(&rule.data.rtprio)
+                    || match_num(&rule.data.oom_score_adj)
+            })
+            .cloned()
+            .collect();
+
+        self.current_page = 0;
+
+        if self.filtered_rules.is_empty()
+        {
+            self.list_state.select(None);
+        }
+        else
+        {
             self.list_state.select(Some(0));
         }
     }
@@ -170,7 +161,7 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
     let mut app = App::new(rules);
 
     let tick_rate = Duration::from_secs(1);
-    let mut last_tick = Instant::now();§
+    let mut last_tick = Instant::now();
 
     loop
     {
@@ -189,20 +180,14 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
                     InputMode::Normal => match key.code
                     {
                         KeyCode::Char('q') | KeyCode::Esc => break,
-
                         KeyCode::Char('s') | KeyCode::Char('/') =>
                         {
                             app.input_mode = InputMode::Editing;
                         }
-
                         KeyCode::Down => app.next(),
-
                         KeyCode::Up => app.previous(),
-
                         KeyCode::Right => app.next_page(),
-
                         KeyCode::Left => app.previous_page(),
-
                         _ =>
                         {}
                     },
@@ -237,7 +222,6 @@ pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService)
     }
 
     disable_raw_mode()?;
-
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
@@ -295,7 +279,7 @@ fn render_content(frame: &mut Frame, app: &mut App, process_service: &ProcessSer
         .split(area);
 
     render_list(frame, app, process_service, chunks[0]);
-    render_details(frame, app, chunks[1]);
+    render_details(frame, app, process_service, chunks[1]);
 }
 
 fn render_list(frame: &mut Frame, app: &mut App, process_service: &ProcessService, area: Rect)
@@ -376,7 +360,7 @@ fn render_list(frame: &mut Frame, app: &mut App, process_service: &ProcessServic
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
-fn render_details(frame: &mut Frame, app: &App, area: Rect)
+fn render_details(frame: &mut Frame, app: &App, process_service: &ProcessService, area: Rect)
 {
     let selected_visual_index = app.list_state.selected();
     let start_index = app.current_page * app.items_per_page;
@@ -387,13 +371,66 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
 
         if let Some(rule) = app.filtered_rules.get(real_index)
         {
-            let mut lines = vec![Line::from(vec![
+            let rule_name = rule.data.name.as_deref().unwrap_or("");
+            let running_processes = process_service.get_process_infos(rule_name);
+            let current_proc = running_processes.first();
+
+            let compare_i32 = |target: Option<i32>, actual: Option<i32>| -> Span {
+                match (target, actual)
+                {
+                    (Some(t), Some(a)) if t == a =>
+                    {
+                        Span::styled(format!("(Current: {})", a), Style::default().fg(Color::Green))
+                    }
+                    (Some(_), Some(a)) => Span::styled(format!("(Current: {})", a), Style::default().fg(Color::Red)),
+                    (None, Some(a)) => Span::styled(format!("(Current: {})", a), Style::default().fg(Color::DarkGray)),
+                    _ => Span::raw(""),
+                }
+            };
+
+            let compare_str = |target: &Option<String>, actual: Option<String>| -> Span {
+                match (target, actual)
+                {
+                    (Some(t), Some(ref a)) if t.eq_ignore_ascii_case(a) =>
+                    {
+                        Span::styled(format!("(Current: {})", a), Style::default().fg(Color::Green))
+                    }
+                    (Some(_), Some(ref a)) =>
+                    {
+                        Span::styled(format!("(Current: {})", a), Style::default().fg(Color::Red))
+                    }
+                    (None, Some(ref a)) =>
+                    {
+                        Span::styled(format!("(Current: {})", a), Style::default().fg(Color::DarkGray))
+                    }
+                    _ => Span::raw(""),
+                }
+            };
+
+            let mut lines = Vec::new();
+
+            if !running_processes.is_empty()
+            {
+                lines.push(Line::from(Span::styled(
+                    format!(
+                        "Status: Running (PID: {}, Process: {})",
+                        running_processes[0].pid, running_processes[0].name
+                    ),
+                    Style::default().fg(Color::Green),
+                )));
+            }
+            else
+            {
+                lines.push(Line::from(Span::styled(
+                    "Status: Not running",
+                    Style::default().fg(Color::DarkGray),
+                )));
+            }
+
+            lines.push(Line::from(vec![
                 Span::raw("Name: "),
-                Span::styled(
-                    rule.data.name.as_deref().unwrap_or("?"),
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                ),
-            ])];
+                Span::styled(rule_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]));
 
             if let Some(rule_type) = &rule.data.rule_type
             {
@@ -408,15 +445,31 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                 lines.push(Line::from(vec![
                     Span::raw("Nice: "),
                     Span::styled(nice.to_string(), Style::default().fg(Color::Yellow)),
+                    compare_i32(Some(nice), current_proc.and_then(|p| p.nice)),
                 ]));
             }
+            else if let Some(p) = current_proc
+            {
+                lines.push(Line::from(vec![Span::raw("Nice: - "), compare_i32(None, p.nice)]));
+            }
 
-            if let Some(nice) = rule.data.latency_nice
+            if let Some(lat) = rule.data.latency_nice
             {
                 lines.push(Line::from(vec![
                     Span::raw("Nice latency: "),
-                    Span::styled(nice.to_string(), Style::default()),
+                    Span::styled(lat.to_string(), Style::default()),
+                    compare_i32(Some(lat), current_proc.and_then(|p| p.latency_nice)),
                 ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                if let Some(val) = p.latency_nice
+                {
+                    lines.push(Line::from(vec![
+                        Span::raw("Nice latency: - "),
+                        compare_i32(None, Some(val)),
+                    ]));
+                }
             }
 
             if let Some(sched) = &rule.data.sched
@@ -424,6 +477,14 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                 lines.push(Line::from(vec![
                     Span::raw("Scheduling policy: "),
                     Span::styled(sched, Style::default()),
+                    compare_str(&Some(sched.clone()), current_proc.and_then(|p| p.sched_policy.clone())),
+                ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Scheduling policy: - "),
+                    compare_str(&None, p.sched_policy.clone()),
                 ]));
             }
 
@@ -432,7 +493,18 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                 lines.push(Line::from(vec![
                     Span::raw("Static priority: "),
                     Span::styled(rtprio.to_string(), Style::default()),
+                    compare_i32(Some(rtprio), current_proc.and_then(|p| p.rtprio)),
                 ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                if let Some(val) = p.rtprio
+                {
+                    lines.push(Line::from(vec![
+                        Span::raw("Static priority: - "),
+                        compare_i32(None, Some(val)),
+                    ]));
+                }
             }
 
             if let Some(ioclass) = &rule.data.ioclass
@@ -440,6 +512,14 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                 lines.push(Line::from(vec![
                     Span::raw("IO class: "),
                     Span::styled(ioclass, Style::default()),
+                    compare_str(&Some(ioclass.clone()), current_proc.and_then(|p| p.ioclass.clone())),
+                ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("IO class: - "),
+                    compare_str(&None, p.ioclass.clone()),
                 ]));
             }
 
@@ -448,15 +528,58 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                 lines.push(Line::from(vec![
                     Span::raw("Out of memory killer score: "),
                     Span::styled(oom_score_adj.to_string(), Style::default()),
+                    compare_i32(Some(oom_score_adj), current_proc.and_then(|p| p.oom_score_adj)),
+                ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                lines.push(Line::from(vec![
+                    Span::raw("Out of memory killer score: - "),
+                    compare_i32(None, p.oom_score_adj),
                 ]));
             }
 
             if let Some(cgroup) = &rule.data.cgroup
             {
+                let current_cgroup = current_proc.and_then(|p| p.cgroup.clone());
+                let style = if current_cgroup
+                    .as_ref()
+                    .map(|c| c.eq_ignore_ascii_case(cgroup))
+                    .unwrap_or(false)
+                {
+                    Style::default().fg(Color::Green)
+                }
+                else if current_cgroup.is_some()
+                {
+                    Style::default().fg(Color::Red)
+                }
+                else
+                {
+                    Style::default().fg(Color::DarkGray)
+                };
+
+                let current_display = current_cgroup
+                    .map(|c| format!("(Current: {})", shorten_cgroup(&c)))
+                    .unwrap_or_default();
+
                 lines.push(Line::from(vec![
-                    Span::raw("CGroup: "),
-                    Span::styled(cgroup, Style::default()),
+                    Span::raw("Cgroup: "),
+                    Span::styled(shorten_cgroup(cgroup), Style::default()),
+                    Span::styled(current_display, style),
                 ]));
+            }
+            else if let Some(p) = current_proc
+            {
+                if let Some(cgroup) = &p.cgroup
+                {
+                    lines.push(Line::from(vec![
+                        Span::raw("Cgroup: - "),
+                        Span::styled(
+                            format!("(Current: {})", shorten_cgroup(cgroup)),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                    ]));
+                }
             }
 
             lines.push(Line::from(""));
@@ -501,14 +624,44 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
         )]
     };
 
+    let inner_height = area.height.saturating_sub(2);
+    let inner_width = area.width.saturating_sub(2) as usize;
+
+    let mut required_lines = 0;
+    for line in &detail_text
+    {
+        let line_width = line.width();
+        if line_width == 0
+        {
+            required_lines += 1;
+        }
+        else
+        {
+            required_lines += (line_width + inner_width - 1) / inner_width;
+        }
+    }
+
+    let has_overflow = required_lines > inner_height as usize;
+
+    let bottom_title = if has_overflow
+    {
+        Line::from(" (▼ More...) ").alignment(Alignment::Right).style(
+            Style::default()
+                .fg(Color::Red)
+                .add_modifier(Modifier::BOLD | Modifier::SLOW_BLINK),
+        )
+    }
+    else
+    {
+        Line::from(format!(" {} ", t!("quote_coffee")))
+            .alignment(Alignment::Right)
+            .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::ITALIC))
+    };
+
     let details_block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" {} ", t!("details_title")))
-        .title_bottom(
-            Line::from(format!(" {} ", t!("quote_coffee")))
-                .alignment(Alignment::Right)
-                .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::ITALIC)),
-        );
+        .title_bottom(bottom_title);
 
     let details = Paragraph::new(detail_text)
         .block(details_block)
@@ -521,11 +674,29 @@ fn render_help(frame: &mut Frame, app: &App, area: Rect)
 {
     let help_text = match app.input_mode
     {
-        InputMode::Normal => format!(" {} ", t!("help_normal")),
         InputMode::Editing => format!(" {} ", t!("help_editing")),
+        InputMode::Normal => format!(" {} ", t!("help_normal")),
     };
 
     let help = Paragraph::new(help_text).style(Style::default().fg(Color::DarkGray));
 
     frame.render_widget(help, area);
+}
+
+fn shorten_cgroup(path: &str) -> String
+{
+    if path == "/"
+    {
+        return path.to_string();
+    }
+
+    let parts: Vec<&str> = path.split('/').collect();
+
+    if parts.len() > 4 && path.starts_with("/user.slice")
+    {
+        let end = parts[parts.len().saturating_sub(2)..].join("/");
+        return format!(".../{}", end);
+    }
+
+    path.to_string()
 }
