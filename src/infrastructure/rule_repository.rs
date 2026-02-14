@@ -1,4 +1,3 @@
-use crate::domain::RuleRepository;
 use crate::domain::models::{AnanicyRule, EnrichedRule};
 
 use anyhow::{Context, Result};
@@ -6,16 +5,29 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-pub struct FsRuleRepository
+pub struct RuleRepository
 {
     base_paths: Vec<PathBuf>,
 }
 
-impl FsRuleRepository
+impl RuleRepository
 {
     pub fn new(base_paths: Vec<PathBuf>) -> Self
     {
         Self { base_paths }
+    }
+
+    pub fn load_all(&self) -> Result<Vec<EnrichedRule>>
+    {
+        let mut all_rules = Vec::new();
+
+        for base_path in &self.base_paths
+        {
+            let rules = self.load_rules_from_dir(base_path);
+            all_rules.extend(rules);
+        }
+
+        Ok(all_rules)
     }
 
     fn load_rules_from_dir(&self, path: &Path) -> Vec<EnrichedRule>
@@ -110,21 +122,5 @@ impl FsRuleRepository
         }
 
         Ok(rules)
-    }
-}
-
-impl RuleRepository for FsRuleRepository
-{
-    fn load_all(&self) -> Result<Vec<EnrichedRule>>
-    {
-        let mut all_rules = Vec::new();
-
-        for base_path in &self.base_paths
-        {
-            let rules = self.load_rules_from_dir(base_path);
-            all_rules.extend(rules);
-        }
-
-        Ok(all_rules)
     }
 }

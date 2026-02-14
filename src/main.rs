@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::sync::Arc;
 
 #[macro_use]
 extern crate rust_i18n;
@@ -13,7 +12,7 @@ mod presentation;
 use application::process_service::ProcessService;
 use application::rule_service::RuleService;
 use infrastructure::config::load_or_create_config;
-use infrastructure::fs_repo::FsRuleRepository;
+use infrastructure::rule_repository::RuleRepository;
 
 i18n!("locales");
 
@@ -44,7 +43,7 @@ fn main() -> Result<()>
     rust_i18n::set_locale(&args.language);
 
     let config = load_or_create_config()?;
-    let rule_repository = Arc::new(FsRuleRepository::new(config.rule_paths));
+    let rule_repository = RuleRepository::new(config.rule_paths);
     let rule_service = RuleService::new(rule_repository);
     let mut process_service = ProcessService::new();
 

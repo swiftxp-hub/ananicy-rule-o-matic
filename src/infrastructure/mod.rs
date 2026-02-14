@@ -1,2 +1,2 @@
 pub mod config;
-pub mod fs_repo;
+pub mod rule_repository;

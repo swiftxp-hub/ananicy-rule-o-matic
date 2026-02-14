@@ -23,3 +23,17 @@ pub struct EnrichedRule
     pub context_comment: Option<String>,
     pub source_file: PathBuf,
 }
+
+#[derive(Debug, Clone)]
+pub struct ProcessInfo
+{
+    pub pid: i32,
+    pub name: String,
+    pub nice: Option<i32>,
+    pub oom_score_adj: Option<i32>,
+    pub cgroup: Option<String>,
+    pub sched_policy: Option<String>,
+    pub rtprio: Option<i32>,
+    pub ioclass: Option<String>,
+    pub latency_nice: Option<i32>,
+}

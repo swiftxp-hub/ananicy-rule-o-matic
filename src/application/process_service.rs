@@ -1,20 +1,8 @@
+use crate::domain::models::ProcessInfo;
+
 use libc::{SCHED_BATCH, SCHED_FIFO, SCHED_IDLE, SCHED_OTHER, SCHED_RR, SYS_ioprio_get, SYS_sched_getattr, syscall};
 use std::fs;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
-
-#[derive(Debug, Clone)]
-pub struct ProcessInfo
-{
-    pub pid: i32,
-    pub name: String,
-    pub nice: Option<i32>,
-    pub oom_score_adj: Option<i32>,
-    pub cgroup: Option<String>,
-    pub sched_policy: Option<String>,
-    pub rtprio: Option<i32>,
-    pub ioclass: Option<String>,
-    pub latency_nice: Option<i32>,
-}
 
 pub struct ProcessService
 {

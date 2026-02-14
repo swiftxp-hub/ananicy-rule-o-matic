@@ -1,17 +1,16 @@
-use crate::domain::RuleRepository;
 use crate::domain::models::EnrichedRule;
+use crate::infrastructure::rule_repository::RuleRepository;
 
 use anyhow::Result;
-use std::sync::Arc;
 
 pub struct RuleService
 {
-    rule_repository: Arc<dyn RuleRepository>,
+    rule_repository: RuleRepository,
 }
 
 impl RuleService
 {
-    pub fn new(rule_repository: Arc<dyn RuleRepository>) -> Self
+    pub fn new(rule_repository: RuleRepository) -> Self
     {
         Self { rule_repository }
     }
