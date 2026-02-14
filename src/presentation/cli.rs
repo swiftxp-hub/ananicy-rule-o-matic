@@ -103,75 +103,6 @@ pub fn print_search_results(rules: &[EnrichedRule], process_service: &ProcessSer
             let process_info = &process_infos[0];
             let mut status_parts = Vec::new();
 
-            let check_i32 = |label: &str, want: Option<i32>, have: Option<i32>| {
-                if let (Some(wanted), Some(had)) = (want, have)
-                {
-                    if wanted == had
-                    {
-                        format!("{} ok", label).green()
-                    }
-                    else
-                    {
-                        format!("{} {}! (want {})", label, had, wanted).red().bold()
-                    }
-                }
-                else if let (None, Some(had)) = (want, have)
-                {
-                    format!("{}: {}", label, had).dimmed()
-                }
-                else
-                {
-                    "".dimmed()
-                }
-            };
-
-            let check_str = |label: &str, want: &Option<String>, have: &Option<String>| {
-                if let (Some(wanted), Some(had)) = (want, have)
-                {
-                    if wanted.eq_ignore_ascii_case(had)
-                    {
-                        format!("{} ok", label).green()
-                    }
-                    else
-                    {
-                        format!("{} {}! (want {})", label, had, wanted).red().bold()
-                    }
-                }
-                else if let (None, Some(had)) = (want, have)
-                {
-                    format!("{}: {}", label, had).dimmed()
-                }
-                else
-                {
-                    "".dimmed()
-                }
-            };
-
-            let check_cgroup = |label: &str, want: &Option<String>, have: &Option<String>| {
-                if let (Some(wanted), Some(had)) = (want, have)
-                {
-                    if wanted.eq_ignore_ascii_case(had)
-                    {
-                        format!("{} ok", label).green()
-                    }
-                    else
-                    {
-                        let short_had = ProcessService::shorten_cgroup(had);
-                        let short_wanted = ProcessService::shorten_cgroup(wanted);
-                        format!("{} {}! (want {})", label, short_had, short_wanted).red().bold()
-                    }
-                }
-                else if let (None, Some(had)) = (want, have)
-                {
-                    let short_had = ProcessService::shorten_cgroup(had);
-                    format!("{}: {}", label, short_had).dimmed()
-                }
-                else
-                {
-                    "".dimmed()
-                }
-            };
-
             if rule.data.nice.is_some() || process_info.nice.is_some()
             {
                 status_parts.push(check_i32("Nice", rule.data.nice, process_info.nice));
@@ -226,5 +157,77 @@ pub fn print_search_results(rules: &[EnrichedRule], process_service: &ProcessSer
         }
 
         println!();
+    }
+}
+
+fn check_i32(label: &str, want: Option<i32>, have: Option<i32>) -> ColoredString
+{
+    if let (Some(wanted), Some(had)) = (want, have)
+    {
+        if wanted == had
+        {
+            format!("{} ok", label).green()
+        }
+        else
+        {
+            format!("{} {}! (want {})", label, had, wanted).red().bold()
+        }
+    }
+    else if let (None, Some(had)) = (want, have)
+    {
+        format!("{}: {}", label, had).dimmed()
+    }
+    else
+    {
+        "".dimmed()
+    }
+}
+
+fn check_str(label: &str, want: &Option<String>, have: &Option<String>) -> ColoredString
+{
+    if let (Some(wanted), Some(had)) = (want, have)
+    {
+        if wanted.eq_ignore_ascii_case(had)
+        {
+            format!("{} ok", label).green()
+        }
+        else
+        {
+            format!("{} {}! (want {})", label, had, wanted).red().bold()
+        }
+    }
+    else if let (None, Some(had)) = (want, have)
+    {
+        format!("{}: {}", label, had).dimmed()
+    }
+    else
+    {
+        "".dimmed()
+    }
+}
+
+fn check_cgroup(label: &str, want: &Option<String>, have: &Option<String>) -> ColoredString
+{
+    if let (Some(wanted), Some(had)) = (want, have)
+    {
+        if wanted.eq_ignore_ascii_case(had)
+        {
+            format!("{} ok", label).green()
+        }
+        else
+        {
+            let short_had = ProcessService::shorten_cgroup(had);
+            let short_wanted = ProcessService::shorten_cgroup(wanted);
+            format!("{} {}! (want {})", label, short_had, short_wanted).red().bold()
+        }
+    }
+    else if let (None, Some(had)) = (want, have)
+    {
+        let short_had = ProcessService::shorten_cgroup(had);
+        format!("{}: {}", label, short_had).dimmed()
+    }
+    else
+    {
+        "".dimmed()
     }
 }
