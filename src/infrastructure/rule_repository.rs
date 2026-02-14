@@ -39,7 +39,10 @@ impl RuleRepository
             return rules;
         }
 
-        for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok())
+        let mut entries: Vec<_> = WalkDir::new(path).into_iter().filter_map(|e| e.ok()).collect();
+        entries.sort_by_key(|e| e.path().to_path_buf());
+
+        for entry in entries
         {
             if entry.path().extension().map_or(false, |e| e == "rules")
             {
@@ -108,6 +111,7 @@ impl RuleRepository
                                 Some(comment_buffer.join("\n"))
                             },
                             source_file: path.to_path_buf(),
+                            shadowed: false,
                         });
 
                         rules_processed_in_block = true;

@@ -316,18 +316,28 @@ fn render_list(frame: &mut Frame, app: &mut App, process_service: &ProcessServic
                 .and_then(|n| n.to_str())
                 .unwrap_or("root");
 
-            let mut name = rule
+            let original_name = rule.data.name.as_deref().unwrap_or("");
+            let mut name_display = rule
                 .data
                 .name
                 .as_deref()
                 .map(Cow::Borrowed)
                 .unwrap_or_else(|| t!("unknown").into());
 
-            let is_active = process_service.is_process_active(&name);
-
-            let name_style = if is_active
+            if rule.shadowed
             {
-                name.to_mut().push_str(" [ACTIVE]");
+                name_display.to_mut().push_str(" (Shadowed)");
+            }
+
+            let is_active = process_service.is_process_active(original_name);
+
+            let name_style = if rule.shadowed
+            {
+                Style::default().fg(Color::DarkGray)
+            }
+            else if is_active
+            {
+                name_display.to_mut().push_str(" [ACTIVE]");
                 Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
             }
             else
@@ -339,7 +349,7 @@ fn render_list(frame: &mut Frame, app: &mut App, process_service: &ProcessServic
 
             let content = Line::from(vec![
                 Span::styled(format!("[{:^7}] ", category), Style::default().fg(Color::Blue)),
-                Span::styled(name, name_style),
+                Span::styled(name_display, name_style),
                 Span::styled(format!(" ({}) ", rule_type), Style::default().fg(Color::White)),
             ]);
 
@@ -408,6 +418,15 @@ fn render_details(frame: &mut Frame, app: &App, process_service: &ProcessService
             };
 
             let mut lines = Vec::new();
+
+            if rule.shadowed
+            {
+                lines.push(Line::from(Span::styled(
+                    "Warning: This rule is shadowed by another rule!",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                )));
+                lines.push(Line::from(""));
+            }
 
             if !running_processes.is_empty()
             {

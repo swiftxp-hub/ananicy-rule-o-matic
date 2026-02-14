@@ -22,6 +22,7 @@ pub struct EnrichedRule
     pub data: AnanicyRule,
     pub context_comment: Option<String>,
     pub source_file: PathBuf,
+    pub shadowed: bool,
 }
 
 #[derive(Debug, Clone)]

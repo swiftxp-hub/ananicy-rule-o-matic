@@ -18,6 +18,8 @@ impl RuleService
     pub fn search_rules(&self, query: &str) -> Result<Vec<EnrichedRule>>
     {
         let mut rules = self.rule_repository.load_all()?;
+        self.mark_shadowed_rules(&mut rules);
+
         let query_lower = query.to_lowercase();
 
         if !query.is_empty()
@@ -45,6 +47,33 @@ impl RuleService
         self.sort_rules(&mut rules);
 
         Ok(rules)
+    }
+
+    fn mark_shadowed_rules(&self, rules: &mut Vec<EnrichedRule>)
+    {
+        let mut name_indices: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+
+        for (index, rule) in rules.iter().enumerate()
+        {
+            if let Some(name) = &rule.data.name
+            {
+                name_indices.entry(name.clone()).or_default().push(index);
+            }
+        }
+
+        for indices in name_indices.values()
+        {
+            if indices.len() > 1
+            {
+                for &index in indices.iter().take(indices.len() - 1)
+                {
+                    if let Some(rule) = rules.get_mut(index)
+                    {
+                        rule.shadowed = true;
+                    }
+                }
+            }
+        }
     }
 
     fn sort_rules(&self, rules: &mut Vec<EnrichedRule>)

@@ -54,7 +54,16 @@ pub fn print_search_results(rules: &[EnrichedRule], process_service: &ProcessSer
             name.cyan().bold()
         };
 
-        print!("[{}] Name: {}", category.blue(), display_name);
+        let shadowed_marker = if rule.shadowed
+        {
+            format!(" {}", "(Shadowed)".red())
+        }
+        else
+        {
+            String::new()
+        };
+
+        print!("[{}] Name: {}{}", category.blue(), display_name, shadowed_marker);
 
         if let Some(rule_type) = rule.data.rule_type.as_deref()
         {
