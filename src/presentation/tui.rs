@@ -1,3 +1,4 @@
+use crate::application::process_service::ProcessService;
 use crate::application::rule_service::RuleService;
 use crate::domain::models::EnrichedRule;
 
@@ -19,7 +20,11 @@ use ratatui::{
 };
 
 use rust_i18n::t;
-use std::{borrow::Cow, io};
+use std::{
+    borrow::Cow,
+    io,
+    time::{Duration, Instant},
+};
 
 struct App
 {
@@ -63,15 +68,20 @@ impl App
 
     fn update_search(&mut self)
     {
-        let q = self.search_query.to_lowercase();
+        let query_lowercase = self.search_query.to_lowercase();
 
         self.filtered_rules = self
             .all_rules
             .iter()
             .filter(|r| {
-                let match_str = |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&q);
+                let match_str =
+                    |opt: &Option<String>| opt.as_deref().unwrap_or("").to_lowercase().contains(&query_lowercase);
 
-                let match_num = |opt: &Option<i32>| opt.map(|n| n.to_string()).unwrap_or_default().contains(&q);
+                let match_num = |opt: &Option<i32>| {
+                    opt.map(|n| n.to_string())
+                        .unwrap_or_default()
+                        .contains(&query_lowercase)
+                };
 
                 match_str(&r.data.name)
                     || match_str(&r.data.rule_type)
@@ -145,9 +155,9 @@ impl App
     }
 }
 
-pub fn run_app(service: &RuleService) -> Result<()>
+pub fn run_app(rule_service: &RuleService, process_service: &mut ProcessService) -> Result<()>
 {
-    let rules = service.search_rules("")?;
+    let rules = rule_service.search_rules("")?;
 
     enable_raw_mode()?;
 
@@ -159,11 +169,18 @@ pub fn run_app(service: &RuleService) -> Result<()>
 
     let mut app = App::new(rules);
 
+    let tick_rate = Duration::from_secs(1);
+    let mut last_tick = Instant::now();§
+
     loop
     {
-        terminal.draw(|frame| ui(frame, &mut app))?;
+        terminal.draw(|frame| ui(frame, &mut app, process_service))?;
 
-        if event::poll(std::time::Duration::from_millis(100))?
+        let timeout = tick_rate
+            .checked_sub(last_tick.elapsed())
+            .unwrap_or_else(|| Duration::from_secs(0));
+
+        if event::poll(timeout)?
         {
             if let Event::Key(key) = event::read()?
             {
@@ -195,24 +212,27 @@ pub fn run_app(service: &RuleService) -> Result<()>
                         {
                             app.input_mode = InputMode::Normal;
                         }
-
                         KeyCode::Backspace =>
                         {
                             app.search_query.pop();
                             app.update_search();
                         }
-
                         KeyCode::Char(c) =>
                         {
                             app.search_query.push(c);
                             app.update_search();
                         }
-
                         _ =>
                         {}
                     },
                 }
             }
+        }
+
+        if last_tick.elapsed() >= tick_rate
+        {
+            process_service.update_processes();
+            last_tick = Instant::now();
         }
     }
 
@@ -224,7 +244,7 @@ pub fn run_app(service: &RuleService) -> Result<()>
     Ok(())
 }
 
-fn ui(frame: &mut Frame, app: &mut App)
+fn ui(frame: &mut Frame, app: &mut App, process_service: &ProcessService)
 {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -232,7 +252,7 @@ fn ui(frame: &mut Frame, app: &mut App)
         .split(frame.area());
 
     render_search(frame, app, chunks[0]);
-    render_content(frame, app, chunks[1]);
+    render_content(frame, app, process_service, chunks[1]);
     render_help(frame, app, chunks[2]);
 }
 
@@ -267,18 +287,18 @@ fn render_search(frame: &mut Frame, app: &App, area: Rect)
     frame.render_widget(search_text, area);
 }
 
-fn render_content(frame: &mut Frame, app: &mut App, area: Rect)
+fn render_content(frame: &mut Frame, app: &mut App, process_service: &ProcessService, area: Rect)
 {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(area);
 
-    render_list(frame, app, chunks[0]);
+    render_list(frame, app, process_service, chunks[0]);
     render_details(frame, app, chunks[1]);
 }
 
-fn render_list(frame: &mut Frame, app: &mut App, area: Rect)
+fn render_list(frame: &mut Frame, app: &mut App, process_service: &ProcessService, area: Rect)
 {
     let total_items = app.filtered_rules.len();
     let total_pages = if total_items > 0
@@ -312,18 +332,30 @@ fn render_list(frame: &mut Frame, app: &mut App, area: Rect)
                 .and_then(|n| n.to_str())
                 .unwrap_or("root");
 
-            let name = rule
+            let mut name = rule
                 .data
                 .name
                 .as_deref()
                 .map(Cow::Borrowed)
-                .unwrap_or_else(|| t!("unknown"));
+                .unwrap_or_else(|| t!("unknown").into());
+
+            let is_active = process_service.is_process_active(&name);
+
+            let name_style = if is_active
+            {
+                name.to_mut().push_str(" [ACTIVE]");
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            }
+            else
+            {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            };
 
             let rule_type = rule.data.rule_type.as_deref().unwrap_or("-");
 
             let content = Line::from(vec![
-                Span::styled(format!("[{}] ", category), Style::default().fg(Color::Blue)),
-                Span::styled(name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("[{:^7}] ", category), Style::default().fg(Color::Blue)),
+                Span::styled(name, name_style),
                 Span::styled(format!(" ({}) ", rule_type), Style::default().fg(Color::White)),
             ]);
 
@@ -448,7 +480,6 @@ fn render_details(frame: &mut Frame, app: &App, area: Rect)
                     lines.push(Line::from(Span::styled(comment_line, Style::default().fg(Color::Gray))));
                 }
             }
-
             lines
         }
         else

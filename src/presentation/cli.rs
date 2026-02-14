@@ -1,10 +1,11 @@
+use crate::application::process_service::ProcessService;
 use crate::domain::models::EnrichedRule;
 
 use colored::*;
 use rust_i18n::t;
 use std::borrow::Cow;
 
-pub fn print_search_results(rules: &[EnrichedRule])
+pub fn print_search_results(rules: &[EnrichedRule], process_service: &ProcessService)
 {
     if rules.is_empty()
     {
@@ -33,7 +34,18 @@ pub fn print_search_results(rules: &[EnrichedRule])
             .map(Cow::Borrowed)
             .unwrap_or_else(|| t!("unknown"));
 
-        print!("[{}] Name: {}", category.blue(), name.cyan().bold());
+        let is_active = process_service.is_process_active(&name);
+
+        let display_name = if is_active
+        {
+            format!("{} [ACTIVE]", name).green().bold()
+        }
+        else
+        {
+            name.cyan().bold()
+        };
+
+        print!("[{}] Name: {}", category.blue(), display_name);
 
         if let Some(rule_type) = rule.data.rule_type.as_deref()
         {

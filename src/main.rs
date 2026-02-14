@@ -10,6 +10,7 @@ mod domain;
 mod infrastructure;
 mod presentation;
 
+use application::process_service::ProcessService;
 use application::rule_service::RuleService;
 use infrastructure::config::load_or_create_config;
 use infrastructure::fs_repo::FsRuleRepository;
@@ -45,17 +46,20 @@ fn main() -> Result<()>
     let config = load_or_create_config()?;
     let rule_repository = Arc::new(FsRuleRepository::new(config.rule_paths));
     let rule_service = RuleService::new(rule_repository);
+    let mut process_service = ProcessService::new();
 
     match args.command
     {
         Some(Commands::Search { query }) =>
         {
+            process_service.update_processes();
+
             let rules = rule_service.search_rules(&query)?;
-            presentation::cli::print_search_results(&rules);
+            presentation::cli::print_search_results(&rules, &process_service);
         }
         None =>
         {
-            presentation::tui::run_app(&rule_service)?;
+            presentation::tui::run_app(&rule_service, &mut process_service)?;
         }
     }
 
