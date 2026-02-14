@@ -1,6 +1,9 @@
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::sync::Arc;
+
 #[macro_use]
 extern crate rust_i18n;
-i18n!("locales");
 
 mod application;
 mod domain;
@@ -8,15 +11,14 @@ mod infrastructure;
 mod presentation;
 
 use application::rule_service::RuleService;
-use clap::{Parser, Subcommand};
-use infrastructure::fs_repo::RuleRepository;
+use infrastructure::config::load_or_create_config;
+use infrastructure::fs_repo::FsRuleRepository;
 
-#[derive(Parser)]
-#[command(name = "ananicy-rule-o-matic")]
-#[command(author = "swiftxp")]
-#[command(version = "0.0.1")]
-#[command(about = "A lightweight rule manager for Ananicy-Cpp.", long_about = None)]
-struct Cli
+i18n!("locales");
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args
 {
     #[arg(short, long, default_value = "en")]
     language: String,
@@ -25,7 +27,7 @@ struct Cli
     command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands
 {
     Search
@@ -34,22 +36,23 @@ enum Commands
     },
 }
 
-fn main() -> anyhow::Result<()>
+fn main() -> Result<()>
 {
-    let cli = Cli::parse();
-    rust_i18n::set_locale(&cli.language);
+    let args = Args::parse();
 
-    let rule_repository = RuleRepository::new();
-    let rule_service = RuleService::new(rule_repository);
+    rust_i18n::set_locale(&args.language);
 
-    match &cli.command
+    let config = load_or_create_config()?;
+    let repo = Arc::new(FsRuleRepository::new(config.rule_paths));
+    let rule_service = RuleService::new(repo);
+
+    match args.command
     {
         Some(Commands::Search { query }) =>
         {
-            let results = rule_service.search_rules(query)?;
-            presentation::cli::print_search_results(&results);
+            let rules = rule_service.search_rules(&query)?;
+            presentation::cli::print_search_results(&rules);
         }
-
         None =>
         {
             presentation::tui::run_app(&rule_service)?;

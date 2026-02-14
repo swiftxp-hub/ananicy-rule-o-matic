@@ -1,23 +1,23 @@
+use crate::domain::RuleRepository;
 use crate::domain::models::EnrichedRule;
-use crate::infrastructure::fs_repo::RuleRepository;
 use anyhow::Result;
-use std::path::Path;
+use std::sync::Arc;
 
 pub struct RuleService
 {
-    rule_repository: RuleRepository,
+    rule_repository: Arc<dyn RuleRepository>,
 }
 
 impl RuleService
 {
-    pub fn new(rule_repository: RuleRepository) -> Self
+    pub fn new(rule_repository: Arc<dyn RuleRepository>) -> Self
     {
         Self { rule_repository }
     }
 
     pub fn search_rules(&self, query: &str) -> Result<Vec<EnrichedRule>>
     {
-        let mut rules = self.rule_repository.load_rules_from_dir(Path::new("./test_rules"))?;
+        let mut rules = self.rule_repository.load_all()?;
         let query_lower = query.to_lowercase();
 
         if !query.is_empty()
@@ -34,11 +34,11 @@ impl RuleService
                     || match_str(&r.data.sched)
                     || match_str(&r.data.ioclass)
                     || match_str(&r.data.cgroup)
+                    || match_str(&r.context_comment)
                     || match_num(&r.data.nice)
                     || match_num(&r.data.latency_nice)
                     || match_num(&r.data.rtprio)
                     || match_num(&r.data.oom_score_adj)
-                    || match_str(&r.context_comment)
             });
         }
 
