@@ -1,7 +1,29 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppConfig
+{
+    pub rule_paths: Vec<PathBuf>,
+}
+
+impl Default for AppConfig
+{
+    fn default() -> Self
+    {
+        Self {
+            rule_paths: vec![
+                PathBuf::from("/etc/ananicy.d"),
+                PathBuf::from("/usr/lib/ananicy.d"),
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".config/ananicy.d"),
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AnanicyRule
 {
     pub name: Option<String>,

@@ -425,7 +425,6 @@ fn render_details(frame: &mut Frame, app: &App, process_service: &ProcessService
                     "Warning: This rule is shadowed by another rule!",
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 )));
-                lines.push(Line::from(""));
             }
 
             if !running_processes.is_empty()

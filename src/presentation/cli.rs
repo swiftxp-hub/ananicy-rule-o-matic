@@ -1,15 +1,34 @@
 use crate::application::process_service::ProcessService;
+use crate::domain::models::AppConfig;
 use crate::domain::models::EnrichedRule;
 
 use colored::*;
 use rust_i18n::t;
 use std::borrow::Cow;
 
+pub fn print_config(config: &AppConfig)
+{
+    println!("{}", "Current Configuration:".bold());
+    println!("{}", "Rule Paths:".yellow());
+
+    for path in &config.rule_paths
+    {
+        println!("  - {}", path.display());
+    }
+}
+
+pub fn print_config_rule_paths(config: &AppConfig)
+{
+    println!("{}", "Rule Paths:".yellow());
+
+    for path in &config.rule_paths
+    {
+        println!("  - {}", path.display());
+    }
+}
+
 pub fn print_search_results(rules: &[EnrichedRule], process_service: &ProcessService)
 {
-    let cli_header = format!("{}{}", "Rule-O-Matic v", env!("CARGO_PKG_VERSION"));
-    println!("{}", cli_header.cyan().bold());
-
     if rules.is_empty()
     {
         println!("{}", t!("no_rules_found").yellow());
