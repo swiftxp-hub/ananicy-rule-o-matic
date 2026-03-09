@@ -12,9 +12,11 @@ fn test_load_rules_simple()
 
     fs::write(file_path, content).unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
 
+    let (rules, errors) = rule_repository.load_all().unwrap();
+
+    assert!(errors.is_empty());
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].data.name.as_deref(), Some("test_process"));
     assert_eq!(rules[0].data.rule_type.as_deref(), Some("Game"));
@@ -34,28 +36,9 @@ fn test_load_rules_multiple_files()
     let content2 = r#"{"name": "proc2", "nice": 10}"#;
     fs::write(file2, content2).unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
 
-    assert_eq!(rules.len(), 2);
-    assert_eq!(rules[0].data.name.as_deref(), Some("proc1"));
-    assert_eq!(rules[1].data.name.as_deref(), Some("proc2"));
-}
-
-#[test]
-fn test_load_rules_multiple_directories()
-{
-    let dir1 = tempdir().unwrap();
-    let dir2 = tempdir().unwrap();
-
-    let file1 = dir1.path().join("test1.rules");
-    fs::write(file1, r#"{"name": "proc1"}"#).unwrap();
-
-    let file2 = dir2.path().join("test2.rules");
-    fs::write(file2, r#"{"name": "proc2"}"#).unwrap();
-
-    let rule_repository = RuleRepository::new(vec![dir1.path().to_path_buf(), dir2.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let (rules, _) = rule_repository.load_all().unwrap();
 
     assert_eq!(rules.len(), 2);
     assert_eq!(rules[0].data.name.as_deref(), Some("proc1"));
@@ -73,9 +56,11 @@ fn test_ignore_non_rule_files()
     let txt_file = dir.path().join("readme.txt");
     fs::write(txt_file, "This is not a rule file").unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
 
+    let (rules, errors) = rule_repository.load_all().unwrap();
+
+    assert!(errors.is_empty());
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].data.name.as_deref(), Some("valid"));
 }
@@ -95,8 +80,9 @@ fn test_comments_parsing()
 "#;
     fs::write(file_path, content).unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
+
+    let (rules, _) = rule_repository.load_all().unwrap();
 
     assert_eq!(rules.len(), 2);
 
@@ -128,8 +114,9 @@ fn test_block_comments_parsing()
 "#;
     fs::write(file_path, content).unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
+
+    let (rules, _) = rule_repository.load_all().unwrap();
 
     assert_eq!(rules.len(), 3);
 
@@ -144,7 +131,7 @@ fn test_block_comments_parsing()
 }
 
 #[test]
-fn test_invalid_json_lines_skipped()
+fn test_invalid_json_lines_skipped_and_reported()
 {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("invalid.rules");
@@ -156,30 +143,41 @@ not even json
 "#;
     fs::write(file_path, content).unwrap();
 
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
+
+    let (rules, errors) = rule_repository.load_all().unwrap();
 
     assert_eq!(rules.len(), 2);
     assert_eq!(rules[0].data.name.as_deref(), Some("valid1"));
     assert_eq!(rules[1].data.name.as_deref(), Some("valid2"));
+
+    assert_eq!(errors.len(), 2);
+    assert!(errors[0].contains("line 3"));
+    assert!(errors[1].contains("line 5"));
+    assert!(errors[1].contains("start with '{'"));
 }
 
 #[test]
 fn test_non_existent_directory()
 {
     let non_existent = PathBuf::from("/path/to/nowhere/hopefully");
-    let rule_repository = RuleRepository::new(vec![non_existent]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(non_existent);
+
+    let (rules, errors) = rule_repository.load_all().unwrap();
 
     assert!(rules.is_empty());
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].contains("does not exist"));
 }
 
 #[test]
 fn test_empty_directory()
 {
     let dir = tempdir().unwrap();
-    let rule_repository = RuleRepository::new(vec![dir.path().to_path_buf()]);
-    let rules = rule_repository.load_all().unwrap();
+    let rule_repository = RuleRepository::new_with_base_path(dir.path().to_path_buf());
+
+    let (rules, errors) = rule_repository.load_all().unwrap();
 
     assert!(rules.is_empty());
+    assert!(errors.is_empty());
 }

@@ -1,4 +1,4 @@
-use crate::domain::models::EnrichedRule;
+use crate::domain::models::{AnanicyRule, EnrichedRule};
 use crate::infrastructure::rule_repository::RuleRepository;
 
 use anyhow::Result;
@@ -15,9 +15,14 @@ impl RuleService
         Self { rule_repository }
     }
 
-    pub fn search_rules(&self, query: &str) -> Result<Vec<EnrichedRule>>
+    pub fn save_rule(&self, rule: &AnanicyRule) -> Result<()>
     {
-        let mut rules = self.rule_repository.load_all()?;
+        self.rule_repository.save_rule(rule)
+    }
+
+    pub fn search_rules(&self, query: &str) -> Result<(Vec<EnrichedRule>, Vec<String>)>
+    {
+        let (mut rules, errors) = self.rule_repository.load_all()?;
         self.mark_shadowed_rules(&mut rules);
 
         let query_lower = query.to_lowercase();
@@ -46,7 +51,7 @@ impl RuleService
 
         self.sort_rules(&mut rules);
 
-        Ok(rules)
+        Ok((rules, errors))
     }
 
     fn mark_shadowed_rules(&self, rules: &mut Vec<EnrichedRule>)
@@ -96,8 +101,10 @@ impl RuleService
                 {
                     let name_a = a.data.name.as_deref().unwrap_or("").to_lowercase();
                     let name_b = b.data.name.as_deref().unwrap_or("").to_lowercase();
+
                     name_a.cmp(&name_b)
                 }
+
                 other => other,
             }
         });

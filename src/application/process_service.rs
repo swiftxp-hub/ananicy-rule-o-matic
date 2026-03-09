@@ -1,37 +1,42 @@
 use crate::domain::models::ProcessInfo;
 
 use libc::{SCHED_BATCH, SCHED_FIFO, SCHED_IDLE, SCHED_OTHER, SCHED_RR, SYS_ioprio_get, SYS_sched_getattr, syscall};
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
 pub struct ProcessService
 {
     system: System,
-    active_process_names: HashSet<String>,
+    process_names: HashSet<String>,
+    truncated_process_names: HashSet<String>,
 }
 
 impl ProcessService
 {
     pub fn new() -> Self
     {
-        let mut service = Self {
+        let mut process_service = Self {
             system: System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything())),
-            active_process_names: HashSet::new(),
+            process_names: HashSet::new(),
+            truncated_process_names: HashSet::new(),
         };
 
-        service.update_processes();
-        service
+        process_service.update_processes();
+        process_service
     }
 
     pub fn get_process_infos(&self, rule_name: &str) -> Vec<ProcessInfo>
     {
-        let query = rule_name.to_lowercase();
         let mut process_infos = Vec::new();
 
         for (pid, process) in self.system.processes()
         {
-            if process.name().to_string_lossy().to_lowercase() == query
+            let process_name = process.name().to_string_lossy();
+
+            if self.matches_rule_name(rule_name, process)
             {
                 let pid_int = pid.as_u32() as i32;
 
@@ -42,8 +47,8 @@ impl ProcessService
                 let ioclass = self.read_io_priority(pid_int);
 
                 process_infos.push(ProcessInfo {
-                    pid: pid_int,
-                    name: process.name().to_string_lossy().to_string(),
+                    process_id: pid_int,
+                    name: process_name.to_string(),
                     nice,
                     oom_score_adj,
                     cgroup,
@@ -54,42 +59,156 @@ impl ProcessService
                 });
             }
         }
+
         process_infos
     }
 
     pub fn is_process_active(&self, rule_name: &str) -> bool
     {
-        self.active_process_names.contains(&rule_name.to_lowercase())
+        let rule_lower = rule_name.to_lowercase();
+
+        if self.process_names.contains(&rule_lower)
+        {
+            return true;
+        }
+
+        if let Some(stripped) = rule_lower.strip_suffix(".exe")
+        {
+            if self.process_names.contains(stripped)
+            {
+                return true;
+            }
+        }
+
+        let with_exe = format!("{}.exe", rule_lower);
+        if self.process_names.contains(&with_exe)
+        {
+            return true;
+        }
+
+        if rule_lower.len() > 15
+        {
+            let truncated = &rule_lower[..15];
+            if self.truncated_process_names.contains(truncated)
+            {
+                return true;
+            }
+        }
+
+        false
     }
 
-    pub fn shorten_cgroup(path: &str) -> String
+    fn matches_rule_name(&self, rule_name: &str, process: &sysinfo::Process) -> bool
     {
-        if path == "/"
+        let proc_name = process.name().to_string_lossy();
+        if self.check_name_match(rule_name, &proc_name)
         {
-            return path.to_string();
+            return true;
         }
 
-        let parts: Vec<&str> = path.split('/').collect();
-
-        if parts.len() > 4 && path.starts_with("/user.slice")
+        for arg in process.cmd()
         {
-            let end = parts[parts.len().saturating_sub(2)..].join("/");
-
-            return format!(".../{}", end);
+            let path = Path::new(arg);
+            if let Some(file_name) = path.file_name()
+            {
+                let name = file_name.to_string_lossy();
+                if self.check_name_match(rule_name, &name)
+                {
+                    return true;
+                }
+            }
         }
 
-        path.to_string()
+        false
+    }
+
+    fn check_name_match(&self, rule_name: &str, proc_name: &str) -> bool
+    {
+        if rule_name.eq_ignore_ascii_case(proc_name)
+        {
+            return true;
+        }
+
+        if proc_name.len() > 4
+            && proc_name[proc_name.len() - 4..].eq_ignore_ascii_case(".exe")
+            && proc_name[..proc_name.len() - 4].eq_ignore_ascii_case(rule_name)
+        {
+            return true;
+        }
+
+        if rule_name.len() > 4
+            && rule_name[rule_name.len() - 4..].eq_ignore_ascii_case(".exe")
+            && rule_name[..rule_name.len() - 4].eq_ignore_ascii_case(proc_name)
+        {
+            return true;
+        }
+
+        if proc_name.len() == 15 && rule_name.len() > 15 && rule_name[..15].eq_ignore_ascii_case(proc_name)
+        {
+            return true;
+        }
+
+        false
+    }
+
+    pub fn shorten_cgroup(cgroup_path: &str) -> Cow<'_, str>
+    {
+        if cgroup_path == "/"
+        {
+            return Cow::Borrowed(cgroup_path);
+        }
+
+        let cgroup_parts: Vec<&str> = cgroup_path.split('/').collect();
+
+        if cgroup_parts.len() > 4 && cgroup_path.starts_with("/user.slice")
+        {
+            let cgroup_end = cgroup_parts[cgroup_parts.len().saturating_sub(2)..].join("/");
+
+            return Cow::Owned(format!(".../{}", cgroup_end));
+        }
+
+        Cow::Borrowed(cgroup_path)
+    }
+
+    pub fn search_processes(&self, query: &str) -> Vec<String>
+    {
+        let query_lower = query.to_lowercase();
+        let mut results: Vec<String> = self
+            .process_names
+            .iter()
+            .filter(|name| name.contains(&query_lower))
+            .cloned()
+            .collect();
+        results.sort();
+        results
     }
 
     pub fn update_processes(&mut self)
     {
         self.system.refresh_processes(ProcessesToUpdate::All, true);
-        self.active_process_names = self
-            .system
-            .processes()
-            .values()
-            .map(|p| p.name().to_string_lossy().to_lowercase())
-            .collect();
+
+        self.process_names.clear();
+        self.truncated_process_names.clear();
+
+        for process in self.system.processes().values()
+        {
+            let name = process.name().to_string_lossy().to_lowercase();
+            if name.len() == 15
+            {
+                self.truncated_process_names.insert(name.clone());
+            }
+            self.process_names.insert(name);
+
+            for arg in process.cmd()
+            {
+                let path = Path::new(arg);
+                if let Some(file_name) = path.file_name()
+                {
+                    let name = file_name.to_string_lossy().to_lowercase();
+                    self.process_names.insert(name);
+                }
+            }
+        }
     }
 
     fn read_nice(&self, pid: i32) -> Option<i32>
@@ -97,31 +216,31 @@ impl ProcessService
         unsafe {
             let val = libc::getpriority(0, pid as u32);
 
-            if val >= -20 && val <= 19 { Some(val) } else { Some(val) }
+            Some(val)
         }
     }
 
     fn read_oom_score(&self, pid: i32) -> Option<i32>
     {
-        let path = format!("/proc/{}/oom_score_adj", pid);
+        let oom_score_path = format!("/proc/{}/oom_score_adj", pid);
 
-        fs::read_to_string(path)
+        fs::read_to_string(oom_score_path)
             .ok()
             .and_then(|content| content.trim().parse().ok())
     }
 
     fn read_cgroup(&self, pid: i32) -> Option<String>
     {
-        let path = format!("/proc/{}/cgroup", pid);
-        let content = fs::read_to_string(path).ok()?;
+        let cgroup_path = format!("/proc/{}/cgroup", pid);
+        let cgroup_content = fs::read_to_string(cgroup_path).ok()?;
 
-        for line in content.lines()
+        for cgroup_line in cgroup_content.lines()
         {
-            let parts: Vec<&str> = line.split(':').collect();
+            let cgroup_line_parts: Vec<&str> = cgroup_line.split(':').collect();
 
-            if parts.len() == 3
+            if cgroup_line_parts.len() == 3
             {
-                let cgroup_path = parts[2];
+                let cgroup_path = cgroup_line_parts[2];
                 if cgroup_path != "/" && !cgroup_path.is_empty()
                 {
                     return Some(cgroup_path.to_string());
@@ -132,10 +251,10 @@ impl ProcessService
         Some("/".to_string())
     }
 
-    fn read_scheduler_info(&self, pid: i32) -> (Option<String>, Option<i32>, Option<i32>)
+    fn read_scheduler_info(&self, process_id: i32) -> (Option<String>, Option<i32>, Option<i32>)
     {
         unsafe {
-            let policy_result = libc::sched_getscheduler(pid);
+            let policy_result = libc::sched_getscheduler(process_id);
             let policy = if policy_result >= 0
             {
                 match policy_result
@@ -154,10 +273,10 @@ impl ProcessService
                 None
             };
 
-            let mut param: libc::sched_param = std::mem::zeroed();
-            let rtprio = if libc::sched_getparam(pid, &mut param) == 0
+            let mut sched_priority_param: libc::sched_param = std::mem::zeroed();
+            let rtprio = if libc::sched_getparam(process_id, &mut sched_priority_param) == 0
             {
-                Some(param.sched_priority)
+                Some(sched_priority_param.sched_priority)
             }
             else
             {
@@ -180,14 +299,20 @@ impl ProcessService
                 sched_latency_nice: i32,
             }
 
-            let mut attr: SchedAttr = std::mem::zeroed();
-            attr.size = std::mem::size_of::<SchedAttr>() as u32;
+            let mut latency_nice_attribute: SchedAttr = std::mem::zeroed();
+            latency_nice_attribute.size = std::mem::size_of::<SchedAttr>() as u32;
 
-            let result = syscall(SYS_sched_getattr, pid, &mut attr as *mut SchedAttr, attr.size, 0);
+            let result = syscall(
+                SYS_sched_getattr,
+                process_id,
+                &mut latency_nice_attribute as *mut SchedAttr,
+                latency_nice_attribute.size,
+                0,
+            );
 
             let latency_nice = if result == 0
             {
-                Some(attr.sched_latency_nice)
+                Some(latency_nice_attribute.sched_latency_nice)
             }
             else
             {
@@ -198,14 +323,15 @@ impl ProcessService
         }
     }
 
-    fn read_io_priority(&self, pid: i32) -> Option<String>
+    fn read_io_priority(&self, process_id: i32) -> Option<String>
     {
         unsafe {
-            let result = syscall(SYS_ioprio_get, 1, pid);
-            if result >= 0
+            let io_priority = syscall(SYS_ioprio_get, 1, process_id);
+
+            if io_priority >= 0
             {
-                let value = result as i32;
-                let ioclass_id = value >> 13;
+                let io_priority_value = io_priority as i32;
+                let ioclass_id = io_priority_value >> 13;
 
                 let ioclass = match ioclass_id
                 {

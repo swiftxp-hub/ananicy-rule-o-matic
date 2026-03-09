@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug (TUI)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ananicy-rule-o-matic",
+                    "--package=ananicy-rule-o-matic"
+                ],
+                "filter": {
+                    "name": "ananicy-rule-o-matic",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "sourceLanguages": ["rust"]
+        }
+    ]
+}

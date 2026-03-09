@@ -26,7 +26,7 @@ fn test_integration_process_detection()
     process_service.update_processes();
 
     let infos = process_service.get_process_infos("sleep");
-    let found_pid = infos.iter().find(|info| info.pid == pid);
+    let found_pid = infos.iter().find(|info| info.process_id == pid);
 
     let _ = child.kill();
 
@@ -59,6 +59,27 @@ fn test_is_process_active_case_insensitive()
     assert!(
         process_service.is_process_active("sleep"),
         "Should detect process with lowercase query"
+    );
+
+    let _ = child.kill();
+}
+
+#[test]
+fn test_is_process_active_exe_suffix()
+{
+    let mut child = spawn_test_process("sleep");
+    let mut process_service = ProcessService::new();
+
+    thread::sleep(Duration::from_millis(100));
+    process_service.update_processes();
+
+    assert!(
+        process_service.is_process_active("sleep.exe"),
+        "Should detect 'sleep' process with 'sleep.exe' rule"
+    );
+    assert!(
+        process_service.is_process_active("SLEEP.EXE"),
+        "Should detect 'sleep' process with 'SLEEP.EXE' rule"
     );
 
     let _ = child.kill();
@@ -102,7 +123,7 @@ fn test_process_info_fields()
     process_service.update_processes();
 
     let infos = process_service.get_process_infos("sleep");
-    let info = infos.iter().find(|i| i.pid == pid).expect("Process not found");
+    let info = infos.iter().find(|i| i.process_id == pid).expect("Process not found");
 
     assert!(info.nice.is_some(), "Nice value should be present");
 
@@ -146,4 +167,28 @@ fn test_shorten_cgroup()
     let system_path = "/system.slice/system-dbus.slice/some.service/deeply/nested/cgroup";
 
     assert_eq!(ProcessService::shorten_cgroup(system_path), system_path);
+}
+
+#[test]
+fn test_process_detection_by_argument()
+{
+    // Spawns "sleep 5"
+    let mut child = spawn_test_process("sleep");
+    let mut process_service = ProcessService::new();
+
+    thread::sleep(Duration::from_millis(100));
+    process_service.update_processes();
+
+    // The argument is "5", so "5" should be detected as an active rule/process
+    // This confirms that we are scanning command line arguments.
+    assert!(
+        process_service.is_process_active("5"),
+        "Should detect process by its argument '5'"
+    );
+
+    let infos = process_service.get_process_infos("5");
+    assert!(!infos.is_empty(), "Should return process info when searching by argument '5'");
+    assert_eq!(infos[0].name, "sleep");
+
+    let _ = child.kill();
 }

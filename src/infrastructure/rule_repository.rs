@@ -1,82 +1,115 @@
 use crate::domain::models::{AnanicyRule, EnrichedRule};
 
 use anyhow::{Context, Result};
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 use walkdir::WalkDir;
 
 pub struct RuleRepository
 {
-    base_paths: Vec<PathBuf>,
+    base_path: PathBuf,
 }
 
 impl RuleRepository
 {
-    pub fn new(base_paths: Vec<PathBuf>) -> Self
+    pub fn new() -> Self
     {
-        Self { base_paths }
-    }
+        let environment_variable_key = "ANANICY_CPP_CONFDIR";
 
-    pub fn load_all(&self) -> Result<Vec<EnrichedRule>>
-    {
-        let mut all_rules = Vec::new();
-
-        for base_path in &self.base_paths
+        match env::var(environment_variable_key)
         {
-            let rules = self.load_rules_from_dir(base_path);
-            all_rules.extend(rules);
-        }
+            Ok(configuration_directory_path) => Self {
+                base_path: PathBuf::from(configuration_directory_path),
+            },
 
-        Ok(all_rules)
+            Err(_) => Self {
+                base_path: PathBuf::from("/etc/ananicy.d"),
+            },
+        }
     }
 
-    fn load_rules_from_dir(&self, path: &Path) -> Vec<EnrichedRule>
+    pub fn new_with_base_path(base_path: PathBuf) -> Self
+    {
+        Self { base_path }
+    }
+
+    pub fn load_all(&self) -> Result<(Vec<EnrichedRule>, Vec<String>)>
     {
         let mut rules = Vec::new();
+        let mut errors = Vec::new();
 
-        if !path.exists()
+        if !self.base_path.exists()
         {
-            return rules;
+            errors.push(format!("Base path {:?} does not exist", self.base_path));
+
+            return Ok((rules, errors));
         }
 
-        let mut entries: Vec<_> = WalkDir::new(path).into_iter().filter_map(|e| e.ok()).collect();
-        entries.sort_by_key(|e| e.path().to_path_buf());
+        let mut files: Vec<_> = WalkDir::new(self.base_path.as_path())
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .collect();
 
-        for entry in entries
+        files.sort_by_key(|e| e.path().to_path_buf());
+
+        for file in files
         {
-            if entry.path().extension().map_or(false, |e| e == "rules")
+            if file.path().extension().map_or(false, |e| e == "rules")
             {
-                match self.parse_file(entry.path())
-                {
-                    Ok(mut file_rules) =>
-                    {
-                        rules.append(&mut file_rules);
-                    }
+                let (mut file_rules, mut file_errors) = self.parse_file(file.path());
 
-                    Err(err) =>
-                    {
-                        eprintln!("Skipping invalid rule file {:?}: {}", entry.path(), err);
-                    }
-                }
+                rules.append(&mut file_rules);
+                errors.append(&mut file_errors);
             }
         }
 
-        rules
+        Ok((rules, errors))
     }
 
-    fn parse_file(&self, path: &Path) -> Result<Vec<EnrichedRule>>
+    pub fn save_rule(&self, rule: &AnanicyRule) -> Result<()>
     {
-        let content = fs::read_to_string(path).with_context(|| format!("Failed to read rule file: {:?}", path))?;
+        let rule_name = rule.name.as_deref().unwrap_or("unknown");
+        let file_name = format!("{}.rules", rule_name);
 
+        let target_dir = self.base_path.join("99-custom");
+        if !target_dir.exists()
+        {
+            fs::create_dir_all(&target_dir).context("Failed to create custom rules directory")?;
+        }
+
+        let file_path = target_dir.join(file_name);
+        let json = serde_json::to_string(rule).context("Failed to serialize rule")?;
+
+        fs::write(&file_path, json).context("Failed to write rule file")?;
+
+        Ok(())
+    }
+
+    fn parse_file(&self, path: &Path) -> (Vec<EnrichedRule>, Vec<String>)
+    {
         let mut rules = Vec::new();
+        let mut errors = Vec::new();
+
+        let content = match fs::read_to_string(path)
+        {
+            Ok(c) => c,
+
+            Err(e) =>
+            {
+                errors.push(format!("Failed to read rule file {:?}: {}", path, e));
+
+                return (rules, errors);
+            }
+        };
+
         let mut comment_buffer = Vec::new();
         let mut rules_processed_in_block = false;
 
-        for line in content.lines()
+        for (line_idx, line) in content.lines().enumerate()
         {
-            let trimmed = line.trim();
+            let trimmed_line = line.trim();
 
-            if trimmed.is_empty()
+            if trimmed_line.is_empty()
             {
                 comment_buffer.clear();
                 rules_processed_in_block = false;
@@ -84,7 +117,7 @@ impl RuleRepository
                 continue;
             }
 
-            if trimmed.starts_with('#')
+            if trimmed_line.starts_with('#')
             {
                 if rules_processed_in_block
                 {
@@ -92,11 +125,11 @@ impl RuleRepository
                     rules_processed_in_block = false;
                 }
 
-                comment_buffer.push(trimmed.to_string());
+                comment_buffer.push(trimmed_line.to_string());
             }
-            else if trimmed.starts_with('{')
+            else if trimmed_line.starts_with('{')
             {
-                match serde_json::from_str::<AnanicyRule>(trimmed)
+                match serde_json::from_str::<AnanicyRule>(trimmed_line)
                 {
                     Ok(data) =>
                     {
@@ -116,15 +149,22 @@ impl RuleRepository
 
                         rules_processed_in_block = true;
                     }
-
-                    Err(_) =>
+                    Err(e) =>
                     {
-                        continue;
+                        errors.push(format!("Parse error in {:?} at line {}: {}", path, line_idx + 1, e));
                     }
                 }
             }
+            else
+            {
+                errors.push(format!(
+                    "Invalid syntax in {:?} at line {}: Line must start with '{{' or '#'",
+                    path,
+                    line_idx + 1
+                ));
+            }
         }
 
-        Ok(rules)
+        (rules, errors)
     }
 }

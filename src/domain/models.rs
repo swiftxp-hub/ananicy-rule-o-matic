@@ -1,28 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AppConfig
-{
-    pub rule_paths: Vec<PathBuf>,
-}
-
-impl Default for AppConfig
-{
-    fn default() -> Self
-    {
-        Self {
-            rule_paths: vec![
-                PathBuf::from("/etc/ananicy.d"),
-                PathBuf::from("/usr/lib/ananicy.d"),
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".config/ananicy.d"),
-            ],
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnanicyRule
 {
@@ -38,6 +16,24 @@ pub struct AnanicyRule
     pub cgroup: Option<String>,
 }
 
+impl Default for AnanicyRule
+{
+    fn default() -> Self
+    {
+        Self {
+            name: None,
+            rule_type: None,
+            nice: None,
+            latency_nice: None,
+            sched: None,
+            rtprio: None,
+            ioclass: None,
+            oom_score_adj: None,
+            cgroup: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EnrichedRule
 {
@@ -50,7 +46,7 @@ pub struct EnrichedRule
 #[derive(Debug, Clone)]
 pub struct ProcessInfo
 {
-    pub pid: i32,
+    pub process_id: i32,
     pub name: String,
     pub nice: Option<i32>,
     pub oom_score_adj: Option<i32>,
